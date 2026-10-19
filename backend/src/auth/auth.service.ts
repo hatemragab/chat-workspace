@@ -9,9 +9,10 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { DatabaseService } from "../infrastructure/database.service";
 import { User, userDto } from "../models";
+import { sessionHash } from "./session";
 import { LoginDto, SignupDto } from "./dto";
 
 @Injectable()
@@ -103,14 +104,28 @@ export class AuthService implements OnModuleInit {
       throw new UnauthorizedException("Invalid credentials");
     return this.session(user);
   }
-  async centrifugoToken(userId: string) {
+  async centrifugoToken(
+    userId: string,
+    sessionId: string,
+    sessionExpiresAt: number,
+  ) {
     return this.jwt.signAsync(
-      { sub: userId },
+      {
+        sub: userId,
+        channels: [`inbox:user#${userId}`],
+        info: { sessionId },
+        meta: { sessionId, sessionExpiresAt },
+      },
       {
         secret: this.config.getOrThrow<string>(
           "CENTRIFUGO_TOKEN_HMAC_SECRET_KEY",
         ),
-        expiresIn: "1h",
+        expiresIn: Math.max(
+          1,
+          Math.min(1800, sessionExpiresAt - Math.floor(Date.now() / 1000)),
+        ),
+        issuer: "chat-api",
+        audience: "chat-realtime",
         algorithm: "HS256",
       },
     );
@@ -124,12 +139,17 @@ export class AuthService implements OnModuleInit {
         algorithm: "HS256",
         issuer: "chat-backend",
         audience: "chat-client",
+        jwtid: randomUUID(),
       },
     );
     return {
       user: userDto(user),
       accessToken,
-      centrifugoToken: await this.centrifugoToken(user._id.toString()),
+      centrifugoToken: await this.centrifugoToken(
+        user._id.toString(),
+        sessionHash(`Bearer ${accessToken}`),
+        this.jwt.decode<{ exp: number }>(accessToken).exp,
+      ),
     };
   }
 }

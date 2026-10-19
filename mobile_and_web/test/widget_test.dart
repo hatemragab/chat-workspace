@@ -29,7 +29,7 @@ void main() {
       await tester.tap(find.byKey(const Key('debug-user-2')));
       await tester.pumpAndSettle();
       expect(controller.debugNumber, 2);
-      expect(find.text('Workspace'), findsOneWidget);
+      expect(find.byKey(const Key('inbox-app-bar')), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

@@ -40,11 +40,22 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     } else {
       await controller.login(_email.text.trim(), _password.text);
     }
+    if (mounted &&
+        controller.currentUser != null &&
+        !controller.requiresReauthentication &&
+        Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final c = ref.watch(chatControllerProvider);
+    c.debugInspector.recordBuild(
+      'AuthScreen',
+      context: c.lastStateContext,
+      notificationId: c.lastStateNotificationId,
+    );
     return Scaffold(
       body: SafeArea(
         child: LayoutBuilder(
@@ -88,10 +99,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         _signup
                             ? 'Create your account and bring everyone together.'
                             : 'Sign in to your space. Your messages will be right here.',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
                           height: 1.5,
-                          color: ChatColors.muted,
+                          color: ChatColors.of(context).muted,
                         ),
                       ),
                       const SizedBox(height: 28),
@@ -210,7 +221,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             _signup
                                 ? 'Already have an account?'
                                 : 'New around here?',
-                            style: const TextStyle(color: ChatColors.muted),
+                            style: TextStyle(
+                              color: ChatColors.of(context).muted,
+                            ),
                           ),
                           TextButton(
                             onPressed: c.busy
@@ -224,72 +237,85 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 22),
-                      const Row(
-                        children: [
-                          Expanded(child: Divider()),
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 12),
-                            child: Text(
-                              'OR EXPLORE THE DEMO',
-                              style: TextStyle(
-                                fontSize: 10,
-                                letterSpacing: 1.4,
-                                color: ChatColors.muted,
-                                fontWeight: FontWeight.w700,
+                      if (c.demoEnabled) ...[
+                        const SizedBox(height: 22),
+                        Row(
+                          children: [
+                            Expanded(child: Divider()),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 12),
+                              child: Text(
+                                'OR EXPLORE THE DEMO',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  letterSpacing: 1.4,
+                                  color: ChatColors.of(context).muted,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
-                          ),
-                          Expanded(child: Divider()),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: List.generate(
-                          5,
-                          (index) => SizedBox(
-                            width: 76,
-                            child: OutlinedButton(
-                              key: Key('debug-user-${index + 1}'),
-                              onPressed: c.busy
-                                  ? null
-                                  : () => c.debugLogin(index + 1),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                side: const BorderSide(
-                                  color: ChatColors.border,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: Column(
-                                children: [
-                                  ChatAvatar(
-                                    name: 'User ${index + 1}',
-                                    id: '${index + 1}',
-                                    radius: 18,
+                            Expanded(child: Divider()),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: List.generate(
+                            5,
+                            (index) => SizedBox(
+                              width: 76,
+                              child: OutlinedButton(
+                                key: Key('debug-user-${index + 1}'),
+                                onPressed: c.busy
+                                    ? null
+                                    : () async {
+                                        await c.debugLogin(index + 1);
+                                        if (context.mounted &&
+                                            c.currentUser != null &&
+                                            !c.requiresReauthentication &&
+                                            Navigator.canPop(context)) {
+                                          Navigator.pop(context);
+                                        }
+                                      },
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
                                   ),
-                                  const SizedBox(height: 9),
-                                  Text(
-                                    'User ${index + 1}',
-                                    style: const TextStyle(fontSize: 12),
+                                  side: BorderSide(
+                                    color: ChatColors.of(context).border,
                                   ),
-                                ],
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    ChatAvatar(
+                                      name: 'User ${index + 1}',
+                                      id: '${index + 1}',
+                                      radius: 18,
+                                    ),
+                                    const SizedBox(height: 9),
+                                    Text(
+                                      'User ${index + 1}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'Five local demo accounts, ready for a conversation.',
-                        style: TextStyle(fontSize: 12, color: ChatColors.muted),
-                      ),
+                        const SizedBox(height: 14),
+                        Text(
+                          'Five local demo accounts, ready for a conversation.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: ChatColors.of(context).muted,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -300,7 +326,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               children: [
                 Expanded(
                   child: Container(
-                    color: const Color(0xFFE8F1F8),
+                    color: ChatColors.of(context).welcome,
                     child: const _WelcomeArt(),
                   ),
                 ),
@@ -323,7 +349,7 @@ class _AuthError extends StatelessWidget {
     liveRegion: true,
     child: Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF0EE),
+        color: Theme.of(context).colorScheme.errorContainer,
         borderRadius: BorderRadius.circular(12),
       ),
       padding: const EdgeInsets.fromLTRB(14, 8, 4, 8),
@@ -357,37 +383,40 @@ class _WelcomeArt extends StatelessWidget {
           children: [
             const BrandMark(large: true),
             const SizedBox(height: 40),
-            const Text(
+            Text(
               'A little closer.\nOne message\nat a time.',
               style: TextStyle(
                 fontSize: 51,
                 height: 1.08,
                 letterSpacing: -2,
                 fontWeight: FontWeight.w700,
-                color: ChatColors.ink,
+                color: ChatColors.of(context).ink,
               ),
             ),
             const SizedBox(height: 28),
-            const Text(
+            Text(
               'A calm space for the people, projects, and conversations that matter.',
               style: TextStyle(
                 fontSize: 17,
                 height: 1.6,
-                color: ChatColors.muted,
+                color: ChatColors.of(context).muted,
               ),
             ),
             const SizedBox(height: 48),
-            _artBubble('Hey, are we still on for tomorrow?', false),
+            _artBubble(context, 'Hey, are we still on for tomorrow?', false),
             const SizedBox(height: 12),
-            _artBubble('Of course. Looking forward to it!', true),
+            _artBubble(context, 'Of course. Looking forward to it!', true),
             const SizedBox(height: 36),
-            const Row(
+            Row(
               children: [
                 Icon(Icons.bolt_outlined, size: 18, color: ChatColors.primary),
                 SizedBox(width: 8),
                 Text(
                   'Instant updates. Always in sync.',
-                  style: TextStyle(color: ChatColors.muted, fontSize: 13),
+                  style: TextStyle(
+                    color: ChatColors.of(context).muted,
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
@@ -396,18 +425,18 @@ class _WelcomeArt extends StatelessWidget {
       ),
     ),
   );
-  Widget _artBubble(String text, bool mine) => Align(
+  Widget _artBubble(BuildContext context, String text, bool mine) => Align(
     alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
-        color: mine ? ChatColors.primary : Colors.white,
+        color: mine ? ChatColors.primary : ChatColors.of(context).surface,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Text(
         text,
         style: TextStyle(
-          color: mine ? Colors.white : ChatColors.ink,
+          color: mine ? Colors.white : ChatColors.of(context).ink,
           fontSize: 14,
         ),
       ),

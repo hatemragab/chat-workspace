@@ -9,6 +9,7 @@ import { AppModule } from "./app.module";
 import { ProblemFilter } from "./errors.filter";
 import { openApiDocument } from "./openapi";
 import { createHttpRequestLogger } from "./infrastructure/http-logging";
+import { DebugTrafficLogger } from "./infrastructure/debug-traffic-logger";
 export async function createApplication() {
   const app = await NestFactory.create(AppModule, {
     logger: ["error", "warn", "log"],
@@ -16,12 +17,14 @@ export async function createApplication() {
   const config = app.get(ConfigService);
   app.use(
     createHttpRequestLogger({
-      enabled: config.get<string>("HTTP_LOGGING_ENABLED", "true") !== "false",
+      logger: app.get(DebugTrafficLogger),
     }),
   );
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    if (!req.path.startsWith("/public/uploads/"))
-      res.setHeader("Cache-Control", "no-store");
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    // Include authorization/not-found media responses; permissions can change
+    // after attachment, deletion or account switching. Controllers may narrow
+    // successful responses further to private, no-store.
+    res.setHeader("Cache-Control", "no-store");
     next();
   });
   app.use(
@@ -39,14 +42,14 @@ export async function createApplication() {
     origin: origins?.length
       ? origins
       : config.get("NODE_ENV") === "development",
-    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    methods: ["GET", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
       "x-device-id",
       "x-request-id",
     ],
-    exposedHeaders: ["X-Request-ID"],
+    exposedHeaders: ["X-Request-ID", "Retry-After"],
   });
   app.useGlobalPipes(
     new ValidationPipe({
@@ -63,7 +66,14 @@ export async function createApplication() {
 }
 async function main() {
   const app = await createApplication();
-  await app.listen(app.get(ConfigService).get<number>("PORT", 3000), "0.0.0.0");
+  const config = app.get(ConfigService);
+  await app.listen(
+    config.get<number>("PORT", 3000),
+    config.get<string>(
+      "HOST",
+      config.get("NODE_ENV") === "development" ? "0.0.0.0" : "127.0.0.1",
+    ),
+  );
 }
 if (require.main === module)
   void main().catch(() => {

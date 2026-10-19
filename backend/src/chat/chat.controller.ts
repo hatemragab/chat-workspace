@@ -58,7 +58,7 @@ export class RoomsController {
     @CurrentUser() user: string,
     @Body() dto: DeliveredBatchDto,
   ) {
-    return this.chat.delivered(user, dto.roomIds, dto);
+    return this.chat.deliveredBatch(user, dto);
   }
   @Patch(":roomId/preferences") preferences(
     @CurrentUser() user: string,

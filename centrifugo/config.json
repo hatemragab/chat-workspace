@@ -1,0 +1,118 @@
+{
+  "http_server": {
+    "address": "0.0.0.0",
+    "port": 8000,
+    "internal_address": "127.0.0.1",
+    "internal_port": "9000"
+  },
+  "client": {
+    "token": {
+      "issuer": "chat-api",
+      "audience": "chat-realtime"
+    },
+    "allowed_origins": [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://127.0.0.1:5173",
+      "http://127.0.0.1:5174"
+    ],
+    "insecure": false,
+    "insecure_skip_token_signature_verify": false,
+    "allow_anonymous_connect_without_token": false,
+    "disallow_anonymous_connection_tokens": true,
+    "subscribe_to_user_personal_channel": {
+      "enabled": false,
+      "single_connection": false
+    },
+    "ping_interval": "25s",
+    "pong_timeout": "10s",
+    "queue_max_size": 262144,
+    "channel_limit": 1,
+    "user_connection_limit": 8,
+    "connection_limit": 1000,
+    "connection_rate_limit": 50,
+    "stale_close_delay": "10s",
+    "proxy": {
+      "connect": {
+        "enabled": true,
+        "endpoint": "http://127.0.0.1:3000/internal/realtime/connect",
+        "timeout": "2s",
+        "include_connection_meta": true,
+        "http": {
+          "static_headers": {
+            "X-API-Key": "${CENTRIFUGO_VAR_PROXY_SECRET}"
+          }
+        }
+      },
+      "refresh": {
+        "enabled": false
+      }
+    }
+  },
+  "websocket": {
+    "message_size_limit": 32768,
+    "compression": false,
+    "use_write_buffer_pool": true
+  },
+  "channel": {
+    "namespaces": [
+      {
+        "name": "inbox",
+        "presence": true,
+        "join_leave": false,
+        "force_push_join_leave": false,
+        "history_size": 0,
+        "history_ttl": "0s",
+        "force_recovery": false,
+        "allow_recovery": false,
+        "force_positioning": false,
+        "allow_positioning": false,
+        "delta_publish": false,
+        "allowed_delta_types": [],
+        "allow_subscribe_for_client": false,
+        "allow_subscribe_for_anonymous": false,
+        "allow_user_limited_channels": false,
+        "allow_publish_for_client": false,
+        "allow_publish_for_subscriber": false,
+        "allow_publish_for_anonymous": false,
+        "allow_history_for_client": false,
+        "allow_history_for_subscriber": false,
+        "allow_history_for_anonymous": false,
+        "allow_presence_for_client": false,
+        "allow_presence_for_subscriber": false,
+        "allow_presence_for_anonymous": false
+      }
+    ]
+  },
+  "engine": {
+    "type": "redis",
+    "redis": {
+      "prefix": "chat_centrifugo_local"
+    }
+  },
+  "http_api": {
+    "insecure": false,
+    "external": false
+  },
+  "admin": {
+    "enabled": true,
+    "insecure": false,
+    "external": false
+  },
+  "debug": {
+    "enabled": true
+  },
+  "swagger": {
+    "enabled": true
+  },
+  "prometheus": {
+    "enabled": true,
+    "instrument_http_handlers": true
+  },
+  "health": {
+    "enabled": true
+  },
+  "log": {
+    "level": "debug"
+  }
+}

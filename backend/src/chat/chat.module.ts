@@ -5,9 +5,19 @@ import {
   ObjectIdPipe,
   RoomsController,
 } from "./chat.controller";
-import { UploadsController } from "./uploads.controller";
+import {
+  MediaController,
+  UploadBudgetGuard,
+  UploadsController,
+} from "./uploads.controller";
+import { UploadsService } from "./uploads.service";
 @Module({
-  controllers: [RoomsController, MessagesController, UploadsController],
-  providers: [ChatService, ObjectIdPipe],
+  controllers: [
+    RoomsController,
+    MessagesController,
+    UploadsController,
+    MediaController,
+  ],
+  providers: [ChatService, ObjectIdPipe, UploadsService, UploadBudgetGuard],
 })
 export class ChatModule {}

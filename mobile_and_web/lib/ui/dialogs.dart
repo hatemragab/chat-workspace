@@ -1,11 +1,14 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/exports.dart';
 import 'theme.dart';
+import 'flutter_inspector.dart';
+import 'presence_label.dart';
 
 Future<void> showPeopleDialog(BuildContext context, {bool group = false}) =>
     showDialog<void>(
@@ -105,7 +108,7 @@ class _PeopleDialogState extends ConsumerState<PeopleDialog> {
                 widget.group
                     ? 'A shared space for your people.'
                     : 'Choose someone to say hello to.',
-                style: const TextStyle(color: ChatColors.muted),
+                style: TextStyle(color: ChatColors.of(context).muted),
               ),
               const SizedBox(height: 22),
               if (widget.group) ...[
@@ -151,7 +154,8 @@ class _PeopleDialogState extends ConsumerState<PeopleDialog> {
                   ),
                 ),
               Flexible(
-                child: _loading
+                // A directory refresh must not hide people already cached locally.
+                child: _loading && c.users.isEmpty
                     ? const Padding(
                         padding: EdgeInsets.all(36),
                         child: Center(child: CircularProgressIndicator()),
@@ -187,12 +191,17 @@ class _PeopleDialogState extends ConsumerState<PeopleDialog> {
                               ),
                             ),
                             subtitle: Text(
-                              c.onlineUserIds.contains(user.id)
-                                  ? 'Online'
-                                  : 'Start a conversation',
-                              style: const TextStyle(
+                              presenceLabel(
+                                context,
+                                online: c.userOnlineStatus(user.id),
+                                lastSeenAt: c.lastSeenAtByUserId[user.id],
+                                unknownLabel: 'Start a conversation',
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: ChatColors.muted,
+                                color: ChatColors.of(context).muted,
                               ),
                             ),
                             trailing: widget.group
@@ -208,9 +217,9 @@ class _PeopleDialogState extends ConsumerState<PeopleDialog> {
                                             }
                                           }),
                                   )
-                                : const Icon(
+                                : Icon(
                                     Icons.chevron_right,
-                                    color: ChatColors.muted,
+                                    color: ChatColors.of(context).muted,
                                   ),
                             onTap: _submitting
                                 ? null
@@ -224,7 +233,10 @@ class _PeopleDialogState extends ConsumerState<PeopleDialog> {
                                     } else {
                                       setState(() => _submitting = true);
                                       await c.openDirect(user);
-                                      if (context.mounted && c.error == null) {
+                                      final opened =
+                                          c.draftPeer?.id == user.id ||
+                                          c.selectedRoom?.peerUserId == user.id;
+                                      if (context.mounted && opened) {
                                         Navigator.pop(context);
                                       }
                                       if (mounted) {
@@ -236,6 +248,12 @@ class _PeopleDialogState extends ConsumerState<PeopleDialog> {
                         },
                       ),
               ),
+              if (c.hasMoreUsers)
+                TextButton(
+                  key: const Key('load-more-people'),
+                  onPressed: c.busy ? null : c.loadMoreUsers,
+                  child: const Text('Load more people'),
+                ),
               const SizedBox(height: 12),
               if (widget.group)
                 SizedBox(
@@ -344,10 +362,43 @@ class _DiagnosticsDialogState extends ConsumerState<DiagnosticsDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
+              Text(
                 'Local state and synchronization counters. Authentication tokens are never shown.',
-                style: TextStyle(fontSize: 13, color: ChatColors.muted),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: ChatColors.of(context).muted,
+                ),
               ),
+              if (kDebugMode)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    key: const Key('open-flutter-inspector'),
+                    onPressed: () {
+                      c.refreshInspectorGauges();
+                      showDialog<void>(
+                        context: context,
+                        builder: (_) => FlutterInspectorDialog(
+                          inspector: c.debugInspector,
+                          onRefresh: c.refreshInspectorGauges,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.monitor_heart_outlined),
+                    label: const Text('Flutter inspector'),
+                  ),
+                ),
+              if (kDebugMode)
+                SwitchListTile.adaptive(
+                  key: const Key('debug-traffic-logging'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Full debug traffic logging'),
+                  subtitle: const Text(
+                    'HTTP, realtime and SQLite query details. Credentials are redacted. Traffic counts cover the last 60 HTTP/realtime records.',
+                  ),
+                  value: c.debugTrafficLoggingEnabled,
+                  onChanged: c.setDebugTrafficLoggingEnabled,
+                ),
               const SizedBox(height: 18),
               SelectableText(
                 json,

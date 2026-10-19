@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:chat_workspace/core/exports.dart';
 import 'package:chat_workspace/ui/chat_app.dart';
 import 'package:flutter/material.dart';
@@ -326,6 +328,42 @@ void main() {
         tester.widget<EditableText>(input).controller.text,
         'Still able to type',
       );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'a pending image cannot clear a reply cancelled and reselected meanwhile',
+    (tester) async {
+      final gate = Completer<void>();
+      final controller = FakeChatController()
+        ..openFixture()
+        ..imageSendGate = gate;
+      await mount(tester, controller);
+      void chooseReply() => tester
+          .widget<VBubbleScope>(find.byType(VBubbleScope))
+          .callbacks
+          .onSwipeReply!('message-1');
+      chooseReply();
+      await tester.pump();
+      tester
+          .widget<VMessageInputWidget>(find.byType(VMessageInputWidget))
+          .onSubmitMedia([
+            VPlatformFile.fromBytes(
+              name: 'photo.png',
+              bytes: [137, 80, 78, 71, 13, 10, 26, 10],
+            ),
+          ]);
+      await tester.pump();
+      await tester.tap(find.byTooltip('Cancel reply'));
+      await tester.pump();
+      chooseReply();
+      await tester.pump();
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(controller.sentImages, ['photo.png']);
+      expect(find.text('Reply to User 1'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

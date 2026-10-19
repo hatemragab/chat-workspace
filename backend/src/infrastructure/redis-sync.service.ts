@@ -6,59 +6,50 @@ import {
   OnModuleInit,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import Redis from "ioredis";
+import Redis, { Command } from "ioredis";
+import { boundedSetting } from "./bounded-work";
 import { createHash, randomUUID } from "node:crypto";
 import { HydratedRoomPayload } from "../models";
+import { LocalServiceDiagnostics } from "./local-service-diagnostics";
+import {
+  retireSessionLua,
+  dueSessionDisconnectsLua,
+  claimSessionDisconnectLua,
+  finishSessionDisconnectLua,
+} from "./session-disconnect-scripts";
 
-export const upsertUserRoomDeltaLua = `
-local newPts = tonumber(ARGV[1])
-local roomId = ARGV[2]
-local ttl = tonumber(ARGV[5])
-if redis.call('EXISTS', KEYS[1]) == 0 then
-  redis.call('HSET', KEYS[1], 'epoch', ARGV[4], 'min_pts', newPts - 1, 'current_pts', newPts)
-else
-  local curPts = tonumber(redis.call('HGET', KEYS[1], 'current_pts') or '0')
-  if newPts > curPts then redis.call('HSET', KEYS[1], 'current_pts', newPts) end
-end
-local prevScore = tonumber(redis.call('ZSCORE', KEYS[2], roomId) or '0')
-if newPts >= prevScore then
-  redis.call('ZADD', KEYS[2], newPts, roomId)
-  redis.call('HSET', KEYS[3], roomId, ARGV[3])
-end
-redis.call('EXPIRE', KEYS[1], ttl)
-redis.call('EXPIRE', KEYS[2], ttl)
-redis.call('EXPIRE', KEYS[3], ttl)
-return redis.call('HGET', KEYS[1], 'epoch')`;
-
-const deltaLua = `
-if redis.call('EXISTS',KEYS[1]) == 0 then return '' end
-local epoch=redis.call('HGET',KEYS[1],'epoch')
-local min=tonumber(redis.call('HGET',KEYS[1],'min_pts') or '0')
-local cur=tonumber(redis.call('HGET',KEYS[1],'current_pts') or '0')
-local since=tonumber(ARGV[1])
-if epoch~=ARGV[2] or since<min or since>cur then return '' end
-local rooms=redis.call('ZRANGEBYSCORE',KEYS[2],'('..ARGV[1],'+inf','LIMIT',0,101)
-if #rooms>100 then return '' end
-local data={}
-for _,id in ipairs(rooms) do
- local payload=redis.call('HGET',KEYS[3],id)
- if not payload then return '' end
- table.insert(data,cjson.decode(payload))
-end
-return cjson.encode({requiresFullSync=false,pts=cur,epoch=epoch,rooms=data})`;
+import {
+  upsertUserRoomDeltaLua,
+  deltaLua,
+  invalidateLua,
+  ensureEpochLua,
+  limitAuthLua,
+  limitRealtimeLua,
+} from "./redis-scripts";
+export { upsertUserRoomDeltaLua } from "./redis-scripts";
 
 @Injectable()
 export class RedisSyncService implements OnModuleInit, OnModuleDestroy {
   readonly client: Redis;
   private readonly prefix: string;
+  private readonly config: ConfigService;
   private readonly logger = new Logger(RedisSyncService.name);
-  constructor(config: ConfigService) {
+  private readonly detachDiagnostics: () => void;
+  constructor(config: ConfigService, diagnostics: LocalServiceDiagnostics) {
+    this.config = config;
     this.prefix = config.get<string>("REDIS_KEY_PREFIX", "");
     this.client = new Redis(config.getOrThrow<string>("REDIS_URL"), {
       maxRetriesPerRequest: 1,
+      commandTimeout: boundedSetting(
+        config,
+        "REDIS_COMMAND_TIMEOUT_MS",
+        1500,
+        10000,
+      ),
       connectTimeout: 3000,
       retryStrategy: (n) => Math.min(n * 200, 3000),
     });
+    this.detachDiagnostics = diagnostics.observeRedis(this.client);
     this.client.on("error", () =>
       this.logger.warn(
         "Redis connection unavailable; clients will recover through a full sync",
@@ -68,40 +59,100 @@ export class RedisSyncService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     await this.client.ping();
   }
+  async ping(timeoutMs = 1500): Promise<void> {
+    // A disconnected readiness probe must not join the reconnect/offline queue.
+    if (this.client.status !== "ready")
+      throw new Error("Redis is not connected");
+    const command = new Command("ping", [], { replyEncoding: "utf8" });
+    command.setTimeout(timeoutMs);
+    try {
+      this.client.sendCommand(command);
+    } catch (error) {
+      command.reject(
+        error instanceof Error ? error : new Error("Redis unavailable"),
+      );
+    }
+    const result = await command.promise;
+    if (result !== "PONG") throw new Error("Unexpected Redis ping response");
+  }
   async onModuleDestroy() {
-    await this.client.quit();
+    try {
+      await this.client.quit();
+    } finally {
+      this.detachDiagnostics();
+    }
   }
   keys(userId: string) {
     return ["meta", "dirty_rooms", "rooms_data"].map(
       (suffix) => `${this.prefix}user:${userId}:${suffix}`,
     );
   }
-  async upsert(userId: string, room: HydratedRoomPayload): Promise<string> {
+  private async deadlineCommand(
+    name: string,
+    args: (string | number)[],
+    deadline: number,
+  ): Promise<unknown> {
+    if (deadline <= Date.now())
+      return Promise.reject(new Error("Inbox deadline expired"));
+    const command = new Command(name, args);
+    command.setTimeout(
+      Math.max(
+        1,
+        Math.min(
+          boundedSetting(this.config, "REDIS_COMMAND_TIMEOUT_MS", 1500, 10000),
+          deadline - Date.now(),
+        ),
+      ),
+    );
+    try {
+      this.client.sendCommand(command);
+    } catch (error) {
+      command.reject(
+        error instanceof Error ? error : new Error("Redis command failed"),
+      );
+    }
+    return command.promise;
+  }
+  async upsert(
+    userId: string,
+    room: HydratedRoomPayload,
+    deadline = Date.now() +
+      boundedSetting(this.config, "REDIS_COMMAND_TIMEOUT_MS", 1500, 10000),
+  ): Promise<string> {
     return String(
-      await this.client.eval(
-        upsertUserRoomDeltaLua,
-        3,
-        ...this.keys(userId),
-        room.roomPts,
-        room.roomId,
-        JSON.stringify(room),
-        randomUUID(),
-        604800,
+      await this.deadlineCommand(
+        "eval",
+        [
+          upsertUserRoomDeltaLua,
+          3,
+          ...this.keys(userId),
+          room.roomPts,
+          room.roomId,
+          JSON.stringify(room),
+          randomUUID(),
+          604800,
+          deadline,
+        ],
+        deadline,
       ),
     );
   }
-  async invalidate(userId: string) {
-    await this.client.del(this.keys(userId)[0]).catch(() => undefined);
+  async invalidate(
+    userId: string,
+    deadline = Date.now() +
+      boundedSetting(this.config, "REDIS_COMMAND_TIMEOUT_MS", 1500, 10000),
+  ) {
+    if (deadline <= Date.now()) return;
+    await this.deadlineCommand(
+      "eval",
+      [invalidateLua, 1, this.keys(userId)[0], deadline],
+      deadline,
+    ).catch(() => undefined);
   }
   async ensureEpoch(userId: string, pts: number): Promise<string> {
     return String(
       await this.client.eval(
-        `local current=tonumber(redis.call('HGET',KEYS[1],'current_pts') or '-1')
-if current<tonumber(ARGV[2]) then
- redis.call('HSET',KEYS[1],'epoch',ARGV[1],'min_pts',ARGV[2],'current_pts',ARGV[2])
-end
-redis.call('EXPIRE',KEYS[1],604800)
-return redis.call('HGET',KEYS[1],'epoch')`,
+        ensureEpochLua,
         1,
         this.keys(userId)[0],
         randomUUID(),
@@ -147,20 +198,114 @@ return redis.call('HGET',KEYS[1],'epoch')`,
   }
   async limitAuth(ip: string) {
     const key = `${this.prefix}auth-rate:${createHash("sha256").update(ip).digest("hex")}`;
-    const count = Number(
-      await this.client.eval(
-        `local n=redis.call('INCR',KEYS[1]) if n==1 then redis.call('EXPIRE',KEYS[1],60) end return n`,
-        1,
-        key,
-      ),
-    );
+    const count = Number(await this.client.eval(limitAuthLua, 1, key));
     if (count > 30)
       throw new HttpException(
         "Too many authentication attempts. Try again in a minute.",
         429,
       );
   }
-  presenceKey(userId: string) {
-    return `${this.prefix}presence:${userId}`;
+  private setting(key: string, fallback: number, minimum = 1) {
+    const value = Number(this.config.get(key, fallback));
+    if (!Number.isSafeInteger(value) || value < minimum || value > 86400000)
+      throw new Error(`Invalid ${key}`);
+    return value;
+  }
+  async limitRealtime(
+    kind: "token" | "heartbeat" | "status" | "logout" | "upload",
+    userId: string,
+    ip: string,
+  ) {
+    const defaults = {
+      token: [30, 120],
+      heartbeat: [120, 600],
+      status: [300, 1200],
+      logout: [30, 120],
+      upload: [30, 120],
+    };
+    const limits = defaults[kind];
+    const tag = kind.toUpperCase();
+    const userLimit = this.setting(`REALTIME_${tag}_USER_LIMIT`, limits[0]);
+    const ipLimit = this.setting(`REALTIME_${tag}_IP_LIMIT`, limits[1]);
+    const digest = createHash("sha256").update(ip).digest("hex");
+    const allowed = await this.client.eval(
+      limitRealtimeLua,
+      2,
+      `${this.prefix}realtime-rate:${kind}:user:${userId}`,
+      `${this.prefix}realtime-rate:${kind}:ip:${digest}`,
+      userLimit,
+      ipLimit,
+    );
+    if (Number(allowed) !== 1)
+      throw new HttpException("Realtime request limit exceeded", 429);
+  }
+  sessionRetiredKey(userId: string, sessionHash: string) {
+    return `${this.prefix}auth-session:${userId}:retired:${sessionHash}`;
+  }
+  async isSessionRetired(userId: string, sessionHash: string) {
+    // Honor existing revocations until their original TTL expires after upgrade.
+    return (
+      (await this.client.exists(
+        this.sessionRetiredKey(userId, sessionHash),
+        `${this.prefix}presence:${userId}:retired:${sessionHash}`,
+      )) > 0
+    );
+  }
+  async retireSession(userId: string, sessionHash: string) {
+    await this.client.eval(
+      retireSessionLua,
+      3,
+      this.sessionRetiredKey(userId, sessionHash),
+      this.sessionDisconnectKey(userId, sessionHash),
+      this.sessionDisconnectQueueKey(),
+      `${userId}:${sessionHash}`,
+    );
+  }
+  sessionDisconnectQueueKey() {
+    return `${this.prefix}auth-session:disconnect:due`;
+  }
+  sessionDisconnectKey(userId: string, sessionHash: string) {
+    return `${this.prefix}auth-session:${userId}:disconnect-job:${sessionHash}`;
+  }
+  async dueSessionDisconnects(limit: number): Promise<string[]> {
+    return (await this.client.eval(
+      dueSessionDisconnectsLua,
+      1,
+      this.sessionDisconnectQueueKey(),
+      limit,
+    )) as string[];
+  }
+  async claimSessionDisconnect(
+    userId: string,
+    sessionHash: string,
+    lease: string,
+  ) {
+    const attempts = await this.client.eval(
+      claimSessionDisconnectLua,
+      2,
+      this.sessionDisconnectQueueKey(),
+      this.sessionDisconnectKey(userId, sessionHash),
+      `${userId}:${sessionHash}`,
+      lease,
+    );
+    return attempts === null ? null : Number(attempts);
+  }
+  async finishSessionDisconnect(
+    userId: string,
+    sessionHash: string,
+    lease: string,
+    success: boolean,
+    retryMs: number,
+  ) {
+    await this.client.eval(
+      finishSessionDisconnectLua,
+      2,
+      this.sessionDisconnectQueueKey(),
+      this.sessionDisconnectKey(userId, sessionHash),
+      `${userId}:${sessionHash}`,
+      lease,
+      success ? "1" : "0",
+      retryMs,
+    );
   }
 }

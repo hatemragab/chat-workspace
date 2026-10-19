@@ -1,4 +1,6 @@
 .DS_Store
+.idea/
+*.iml
 .env
 .env.*
 !.env.example
@@ -27,3 +29,12 @@ build/
 *.keystore
 key.properties
 .runtime/
+*.jsonl
+*.rdb
+*.aof
+*.aof.*
+*.dump
+*.bak
+*.har
+*.heapsnapshot
+*.cpuprofile

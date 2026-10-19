@@ -15,6 +15,8 @@ class ChatApp extends ConsumerStatefulWidget {
 }
 
 class _ChatAppState extends ConsumerState<ChatApp> {
+  final _lightTheme = buildChatTheme(brightness: Brightness.light);
+  final _darkTheme = buildChatTheme();
   @override
   void initState() {
     super.initState();
@@ -25,11 +27,19 @@ class _ChatAppState extends ConsumerState<ChatApp> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = ref.watch(chatControllerProvider);
+    ref.watch(chatControllerProvider.select((c) => c.currentUser?.id));
+    final controller = ref.read(chatControllerProvider);
+    controller.debugInspector.recordBuild(
+      'ChatApp',
+      context: controller.lastStateContext,
+      notificationId: controller.lastStateNotificationId,
+    );
     return MaterialApp(
       title: 'Chat Workspace',
       debugShowCheckedModeBanner: false,
-      theme: buildChatTheme(),
+      theme: _lightTheme,
+      darkTheme: _darkTheme,
+      themeMode: ThemeMode.dark,
       home: controller.currentUser == null
           ? const AuthScreen()
           : const ChatShell(),

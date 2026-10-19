@@ -26,6 +26,12 @@ const message = object({
   idempotencyKey: { ...string, format: "uuid" },
   roomId: id,
   roomType: { ...string, enum: ["direct", "group"] },
+  messageSeq: {
+    ...integer,
+    minimum: 1,
+    maximum: Number.MAX_SAFE_INTEGER,
+    nullable: true,
+  },
   senderId: id,
   senderName: string,
   senderAvatarUrl: { ...string, nullable: true },
@@ -56,9 +62,31 @@ const room = object(
     sortTimestamp: date,
     roomPts: integer,
     msgPts: integer,
+    contentPts: integer,
+    headSeq: integer,
+    ownDeliveredSeq: integer,
+    ownSeenSeq: integer,
+    peerDeliveredSeq: integer,
+    peerSeenSeq: integer,
+    sequenceReceipt: {
+      ...boolean,
+      description:
+        "True for sequence-only receipt mutations: do not apply actionTimestamp to legacy messages.",
+    },
+    receiptProtocol: {
+      ...string,
+      enum: ["legacy", "sequence"],
+      description:
+        "Use upToSeq only when sequence is advertised. Legacy mode rejects sequence commands to preserve mixed-client compatibility.",
+    },
     lastHistoryEditPts: integer,
     lastMessage: { ...message, nullable: true },
     updatedMessage: { ...message, nullable: true },
+    quoteUpdate: {
+      ...reply,
+      description:
+        "Quote-only update when the changed original is hidden for this recipient. Update matching reply previews without inserting or resurfacing the original; text is at most 120 characters.",
+    },
     eventType: {
       ...string,
       enum: [
@@ -105,7 +133,11 @@ const user = object({
   isDebugUser: boolean,
   debugUserNumber: { type: "integer", nullable: true },
   pts: integer,
-  lastSeenAt: date,
+  lastSeenAt: {
+    ...date,
+    description:
+      "Last known authenticated connection activity, persisted after the user's final socket disappears. Snapshot timing is approximate (30 seconds by default); provider failures do not mark users offline.",
+  },
 });
 const peer = object({
   _id: id,
@@ -114,15 +146,43 @@ const peer = object({
   displayName: string,
   avatarUrl: { ...string, nullable: true },
 });
-const problem = object({
-  type: string,
-  title: string,
-  status: { type: "integer" },
-  detail: string,
-  instance: string,
-  requestId: { ...string, maxLength: 64 },
-  message: { oneOf: [string, array(string)] },
-});
+const problem = object(
+  {
+    type: string,
+    title: string,
+    status: { type: "integer" },
+    detail: string,
+    instance: string,
+    requestId: { ...string, maxLength: 64 },
+    message: { oneOf: [string, array(string)] },
+    code: {
+      ...string,
+      description:
+        "Stable error category, for example VALIDATION_FAILED, BAD_REQUEST, AUTHENTICATION_REQUIRED, RATE_LIMITED or SERVICE_UNAVAILABLE. Clients must tolerate additional codes.",
+    },
+    retryable: {
+      ...boolean,
+      description:
+        "True for 408, 429, 500, 502, 503 and 504. A retry still requires an idempotent operation and capped backoff; false requires user action or a changed request.",
+    },
+    retryAfterSeconds: {
+      ...integer,
+      description:
+        "429 cooldown matching the Retry-After header (currently 60 seconds).",
+    },
+  },
+  [
+    "type",
+    "title",
+    "status",
+    "detail",
+    "instance",
+    "requestId",
+    "message",
+    "code",
+    "retryable",
+  ],
+);
 const auth = object({
   user: ref("User"),
   accessToken: string,
@@ -183,7 +243,9 @@ function operation(
         content: content(response),
       },
       ...Object.fromEntries(
-        [400, 401, 403, 404, 409, 413, 429, 500, 503].map((code) => [
+        [
+          400, 401, 403, 404, 408, 409, 413, 415, 422, 429, 500, 502, 503, 504,
+        ].map((code) => [
           code,
           {
             description:
@@ -197,6 +259,15 @@ function operation(
                 description: "Request correlation ID",
                 schema: { type: "string", maxLength: 64 },
               },
+              ...(code === 429
+                ? {
+                    "Retry-After": {
+                      description:
+                        "Minimum retry delay in seconds, exposed to browser clients through CORS.",
+                      schema: { type: "integer", minimum: 0, example: 60 },
+                    },
+                  }
+                : {}),
             },
             content: { "application/problem+json": { schema: ref("Problem") } },
           },
@@ -207,7 +278,24 @@ function operation(
 }
 const roomId = pathParameter("roomId");
 const messageId = pathParameter("messageId");
-const boundary = object({ upToTimestamp: date }, []);
+const sequence = { ...integer, maximum: Number.MAX_SAFE_INTEGER };
+const receiptState = object({
+  ownDeliveredSeq: sequence,
+  ownSeenSeq: sequence,
+  peerDeliveredSeq: sequence,
+  peerSeenSeq: sequence,
+});
+const receiptAck = object({
+  ok: boolean,
+  rooms: array(
+    object({ roomId: id, ownDeliveredSeq: sequence, ownSeenSeq: sequence }),
+  ),
+});
+const boundary = {
+  ...object({ upToTimestamp: date, upToSeq: sequence }, []),
+  description:
+    "Omit both for the legacy timestamp-now command, or supply exactly one boundary. upToSeq requires compact protocol and must not exceed the committed head. Delivery covers positive sequences only; Seen additionally marks retained nullable legacy incoming history read. Null, fractional, negative and unsafe integers are rejected.",
+};
 const roomResponse = object({ room: ref("HydratedRoom") });
 const messageResponse = object({
   message: ref("Message"),
@@ -225,12 +313,23 @@ export const openApiDocument = {
   paths: {
     "/health": {
       get: operation(
-        "Check MongoDB and Redis readiness",
+        "Check MongoDB primary and Redis concurrently with 1,500 ms driver deadlines; uncached and public, independent of realtime provider availability",
         object({ status: string, mongo: string, redis: string }),
         undefined,
         [],
         true,
       ),
+      head: {
+        summary:
+          "Run the same bounded readiness checks as GET /health, returning headers and status without a response body",
+        security: [],
+        responses: {
+          "200": { description: "MongoDB primary and Redis responded" },
+          "503": {
+            description: "A required dependency is unavailable or timed out",
+          },
+        },
+      },
     },
     "/auth/debug-users": {
       get: operation(
@@ -297,21 +396,45 @@ export const openApiDocument = {
     "/users": {
       get: operation(
         "List users available for direct and group chats",
-        array(ref("PeerUser")),
+        {
+          oneOf: [
+            array(ref("PeerUser")),
+            object({
+              users: array(ref("PeerUser")),
+              nextCursor: { ...id, nullable: true },
+            }),
+          ],
+        },
+        undefined,
+        [
+          queryParameter("limit", {
+            type: "integer",
+            minimum: 1,
+            maximum: 100,
+          }),
+          queryParameter("afterUserId", id),
+        ],
       ),
     },
     "/rooms": {
       get: operation(
         "Load all pinned and a cursor page of unpinned rooms from a consistent MongoDB snapshot",
-        object({
-          pts: integer,
-          epoch: string,
-          rooms: array(ref("HydratedRoom")),
-          nextCursor: {
-            ...object({ beforeSortTimestamp: date, beforeRoomId: id }),
-            nullable: true,
+        object(
+          {
+            pts: integer,
+            epoch: string,
+            rooms: array(ref("HydratedRoom")),
+            nextCursor: {
+              ...object({ beforeSortTimestamp: date, beforeRoomId: id }),
+              nullable: true,
+            },
+            pinnedNextCursor: {
+              ...object({ beforePinAt: date, beforePinnedRoomId: id }),
+              nullable: true,
+            },
           },
-        }),
+          ["pts", "epoch", "rooms", "nextCursor"],
+        ),
         undefined,
         [
           queryParameter("limit", {
@@ -322,6 +445,14 @@ export const openApiDocument = {
           }),
           queryParameter("beforeSortTimestamp", date),
           queryParameter("beforeRoomId", id),
+          queryParameter("pinnedLimit", {
+            type: "integer",
+            minimum: 1,
+            maximum: 100,
+          }),
+          queryParameter("beforePinAt", date),
+          queryParameter("beforePinnedRoomId", id),
+          queryParameter("pinnedOnly", boolean),
         ],
       ),
     },
@@ -382,7 +513,7 @@ export const openApiDocument = {
     },
     "/rooms/{roomId}/preferences": {
       patch: operation(
-        "Set pin and mute without changing message revisions or order",
+        "Set non-null boolean pin and mute values without changing message revisions or order; null is rejected",
         roomResponse,
         object({ pin: boolean, isMuted: boolean }, []),
         [roomId],
@@ -391,7 +522,36 @@ export const openApiDocument = {
     "/rooms/{roomId}/messages": {
       get: operation(
         "Load visible messages, newest first; both cursor fields must be supplied together",
-        object({ messages: array(ref("Message")), hasMore: boolean }),
+        object(
+          {
+            messages: array(ref("Message")),
+            hasMore: boolean,
+            receiptState,
+            coverage: {
+              ...object({
+                roomPts: integer,
+                msgPts: integer,
+                contentPts: integer,
+                lastHistoryEditPts: integer,
+                headSeq: sequence,
+                fromSeq: sequence,
+                throughSeq: sequence,
+              }),
+              description:
+                "Same MongoDB snapshot as returned rows. Every visible sequenced message in inclusive [fromSeq,throughSeq] was returned; absent sequences in that interval are not visible to this account. fromSeq=throughSeq+1 means empty coverage. headSeq alone never certifies downloaded bodies. Combine adjoining ranges from previous acknowledged delivery before sending upToSeq. contentPts excludes receipts/preferences.",
+            },
+            receipts: {
+              ...object({
+                deliveredThrough: nullableDate,
+                seenThrough: nullableDate,
+                hasGaps: boolean,
+              }),
+              description:
+                "Latest direct-room page only: maximum CREATED timestamp boundaries of the caller's outgoing messages with persisted delivered/seen receipts, from the same MongoDB snapshot as messages. Null means no outgoing message has that receipt. hasGaps flags any unacknowledged outgoing message at/before either boundary; when true clients must reset older cache instead of promoting ticks by boundary. Omitted on groups and older cursor pages.",
+            },
+          },
+          ["messages", "hasMore"],
+        ),
         undefined,
         [
           roomId,
@@ -426,7 +586,7 @@ export const openApiDocument = {
     "/rooms/{roomId}/delivered": {
       post: operation(
         "Mark incoming direct messages delivered through the supplied boundary",
-        ok,
+        receiptAck,
         boundary,
         [roomId],
       ),
@@ -434,7 +594,7 @@ export const openApiDocument = {
     "/rooms/delivered-batch": {
       post: operation(
         "Atomically mark incoming messages delivered for up to 100 direct rooms; any invalid member aborts the batch",
-        ok,
+        receiptAck,
         object(
           {
             roomIds: {
@@ -444,15 +604,20 @@ export const openApiDocument = {
               uniqueItems: true,
             },
             upToTimestamp: date,
+            targets: {
+              ...array(object({ roomId: id, upToSeq: sequence })),
+              minItems: 1,
+              maxItems: 100,
+            },
           },
-          ["roomIds"],
+          [],
         ),
       ),
     },
     "/rooms/{roomId}/seen": {
       post: operation(
         "Clear own unread count and separately mark incoming direct messages seen",
-        ok,
+        receiptAck,
         boundary,
         [roomId],
       ),
@@ -502,7 +667,7 @@ export const openApiDocument = {
     "/uploads/image": {
       post: {
         ...operation(
-          "Upload a validated JPEG, PNG, GIF or WebP image, at most 5 MiB",
+          "Upload a fully decoded JPEG, PNG, GIF or WebP image: 5 MiB, configured pixel/frame/dimension limits, authenticated rate/concurrency budgets; returns a retained owner-only pending path",
           object({ imageUrl: string }),
           undefined,
           [],
@@ -519,18 +684,80 @@ export const openApiDocument = {
         },
       },
     },
+    "/public/uploads/{filename}": {
+      get: {
+        ...operation(
+          "Read retained media using bearer authentication and currently visible message/quote membership; pending uploads are owner-only",
+          string,
+          undefined,
+          [
+            {
+              name: "filename",
+              in: "path",
+              required: true,
+              schema: {
+                type: "string",
+                pattern:
+                  "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,199}\\.(jpg|jpeg|png|webp|gif)$",
+              },
+            },
+          ],
+        ),
+        responses: {
+          ...operation("Read media", string).responses,
+          "200": {
+            description:
+              "Private media; Cache-Control private, no-store. Global/per-user deletion revokes new reads where no visible reference remains.",
+            content: {
+              "image/png": { schema: { type: "string", format: "binary" } },
+              "image/jpeg": { schema: { type: "string", format: "binary" } },
+              "image/gif": { schema: { type: "string", format: "binary" } },
+              "image/webp": { schema: { type: "string", format: "binary" } },
+            },
+          },
+        },
+      },
+    },
     "/presence/heartbeat": {
-      post: operation("Renew a 45-second online presence lease", ok),
+      post: {
+        ...operation(
+          "Deprecated compatibility no-op; Centrifugo connections determine presence",
+          ok,
+        ),
+        deprecated: true,
+      },
+    },
+    "/presence/offline": {
+      post: operation(
+        "Atomically retire this login and queue persistent disconnect retries; other logins remain online, and last seen is recorded only after the final socket disappears",
+        ok,
+      ),
     },
     "/presence/status": {
       post: operation(
-        "Read online status for up to 100 userIds",
-        object({ statuses: { type: "object", additionalProperties: boolean } }),
+        "Read Centrifugo connection presence for self and shared-room contacts, up to 100 userIds; unauthorized IDs are omitted",
+        object({
+          statuses: { type: "object", additionalProperties: boolean },
+          lastSeenAt: {
+            type: "object",
+            additionalProperties: { ...date, nullable: true },
+            description:
+              "Last known connection activity for authorized offline users only. Approximate; recorded by the backend observer.",
+          },
+        }),
         object({ userIds: { ...array(id), maxItems: 100 } }),
       ),
       get: operation(
-        "Read online status for up to 100 comma-separated userIds",
-        object({ statuses: { type: "object", additionalProperties: boolean } }),
+        "Read Centrifugo connection presence for self and shared-room contacts, up to 100 comma-separated userIds; unauthorized IDs are omitted",
+        object({
+          statuses: { type: "object", additionalProperties: boolean },
+          lastSeenAt: {
+            type: "object",
+            additionalProperties: { ...date, nullable: true },
+            description:
+              "Last known connection activity for authorized offline users only. Approximate; recorded by the backend observer.",
+          },
+        }),
         undefined,
         [queryParameter("userIds", string, true)],
       ),
@@ -547,11 +774,42 @@ export const openApiDocument = {
       Message: message,
       HydratedRoom: room,
       Problem: problem,
+      PresencePublication: object({
+        type: { ...string, enum: ["presence_changed"] },
+        userId: id,
+        online: boolean,
+      }),
       InboxPublication: object({
         pts: integer,
         epoch: string,
         room: ref("HydratedRoom"),
       }),
+      CompactReceiptPublication: object({
+        pts: integer,
+        epoch: string,
+        receipt: object({
+          roomId: id,
+          eventType: { ...string, enum: ["room_delivered", "room_peer_seen"] },
+          peerDeliveredSeq: sequence,
+          peerSeenSeq: sequence,
+          contentPts: integer,
+        }),
+      }),
+      CompactUnreadPublication: {
+        ...object({
+          pts: integer,
+          epoch: string,
+          unread: object({
+            eventType: { ...string, enum: ["room_unread_cleared"] },
+            roomId: id,
+            unreadCount: integer,
+            ownDeliveredSeq: sequence,
+            ownSeenSeq: sequence,
+          }),
+        }),
+        description:
+          "Compact-mode own-account unread patch for direct/group rooms. unreadCount may remain positive after a bounded read. Stamp roomPts from pts; preserve msgPts, contentPts, history, ordering, message rows and exact dates. Merge own acknowledgement cursors monotonically. Apply through the serialized inbox transaction. Redis/full recovery remains hydrated; legacy mode uses InboxPublication. No additional own-progress events are produced.",
+      },
     },
   },
 } as unknown as OpenAPIObject;

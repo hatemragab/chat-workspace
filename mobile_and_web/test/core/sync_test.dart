@@ -7,6 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final instant = DateTime.utc(2026, 10, 16, 12);
+ServerHealthMonitor testServerHealth() => ServerHealthMonitor(
+  healthUri: Uri.parse('http://test.invalid/health'),
+  probe: () async => true,
+);
 ChatMessage message(
   String id, {
   String room = 'room',
@@ -65,6 +69,10 @@ class FakeApi extends ChatApi {
   Future<Map<String, dynamic>> Function(String, Map<String, dynamic>?)?
   postHandler;
   @override
+  Future<({List<UserProfile> users, String? nextCursor})> directoryPage({
+    String? cursor,
+  }) async => (users: await getUsers('/users'), nextCursor: null);
+  @override
   Future<List<UserProfile>> getUsers(String path) async => usersHandler != null
       ? usersHandler!(path)
       : path == '/users'
@@ -112,7 +120,7 @@ class PausableMessageDatabase extends AppDatabase {
   @override
   Future<void> upsertMessage(ChatMessage message) async {
     await super.upsertMessage(message);
-    if (pauseInsert && message.status == 'sending') {
+    if (pauseInsert && message.status == 'queued') {
       pauseInsert = false;
       writePaused.complete();
       await resumeWrite.future;
@@ -123,6 +131,40 @@ class PausableMessageDatabase extends AppDatabase {
   Future<void> setMessageStatus(String id, String status) async {
     await super.setMessageStatus(id, status);
     if (pauseStatus && status == 'sending') {
+      pauseStatus = false;
+      writePaused.complete();
+      await resumeWrite.future;
+    }
+  }
+
+  @override
+  Future<void> updateOutboundState(
+    String senderId,
+    String key, {
+    String? status,
+    int? retryCount,
+    DateTime? nextAttemptAt,
+    String? errorCode,
+    String? errorMessage,
+    bool? outcomeUnknown,
+    bool? paused,
+    bool clearError = false,
+    bool clearRetryAt = false,
+  }) async {
+    await super.updateOutboundState(
+      senderId,
+      key,
+      status: status,
+      retryCount: retryCount,
+      nextAttemptAt: nextAttemptAt,
+      errorCode: errorCode,
+      errorMessage: errorMessage,
+      outcomeUnknown: outcomeUnknown,
+      paused: paused,
+      clearError: clearError,
+      clearRetryAt: clearRetryAt,
+    );
+    if (pauseStatus && status == 'queued') {
       pauseStatus = false;
       writePaused.complete();
       await resumeWrite.future;
@@ -217,7 +259,8 @@ void main() {
     () async {
       await db.upsertMessage(message('temp', status: 'sending'));
       await db.initializeSession('me');
-      expect((await db.message('temp'))!.status, 'failed');
+      expect((await db.message('temp'))!.status, 'queued');
+      expect((await db.message('temp'))!.outcomeUnknown, isTrue);
       await db.upsertRoom(ChatRoom.fromJson(payload()));
       await db.initializeSession('other');
       expect(await db.allMessages('room'), isEmpty);
@@ -245,13 +288,13 @@ void main() {
         payload(event: 'room_delivered'),
         myUserId: 'me',
       );
-      expect((await db.message('own'))!.deliveredAt, isNotNull);
+      expect((await db.message('own'))!.isDelivered, true);
       expect((await db.message('own'))!.seenAt, isNull);
       await db.applyRoomPayload(
         payload(pts: 2, event: 'room_peer_seen'),
         myUserId: 'me',
       );
-      expect((await db.message('own'))!.seenAt, isNotNull);
+      expect((await db.message('own'))!.isSeen, true);
       expect((await db.message('future'))!.seenAt, isNull);
       expect((await db.message('incoming'))!.seenAt, isNull);
     },
@@ -460,14 +503,17 @@ void main() {
         database: db,
         api: api,
         enableRealtime: false,
+        healthMonitorFactory: testServerHealth,
       );
       await controller.debugLogin(1);
       expect(controller.error, isNull);
       await controller.openRoom((await db.room('room'))!);
+      await controller.syncNow();
       expect(controller.error, isNull);
       expect(api.messageRequests, 1);
       await controller.closeRoom();
       await controller.openRoom((await db.room('room'))!);
+      await controller.syncNow();
       expect(controller.error, isNull);
       expect(api.messageRequests, 1);
       await controller.logout();
@@ -493,7 +539,13 @@ void main() {
       var fails = true;
       api.postHandler = (_, body) async {
         keys.add(body!['idempotencyKey'] as String);
-        if (fails) throw const ChatApiException('offline');
+        if (fails) {
+          throw const ChatApiException(
+            'Invalid message',
+            statusCode: 400,
+            kind: ChatFailureKind.validation,
+          );
+        }
         final sent = message('server-id', key: keys.last);
         return {'message': sent.toJson(), 'room': payload(last: sent)};
       };
@@ -501,17 +553,20 @@ void main() {
         database: db,
         api: api,
         enableRealtime: false,
+        healthMonitorFactory: testServerHealth,
       );
       await controller.debugLogin(1);
       await controller.openDirect(
         const UserProfile(id: 'peer', username: 'peer', displayName: 'Peer'),
       );
       await controller.sendText('hello');
+      await controller.outboxIdle;
       final failed = (await db.allMessages('draft_peer')).single;
       expect(failed.status, 'failed');
       expect(failed.peerUserId, 'peer');
       fails = false;
       await controller.retryMessage(failed);
+      await controller.outboxIdle;
       expect(controller.error, isNull);
       expect(keys.length, 2);
       expect(keys.first, keys.last);
@@ -603,13 +658,17 @@ void main() {
         });
         return {
           'message': sent.toJson(),
-          'room': payload(room: 'room-a', last: sent),
+          'room': {
+            ...payload(room: 'room-a', last: sent),
+            'peerUserId': body['peerUserId'],
+          },
         };
       };
       final controller = ChatController(
         database: db,
         api: api,
         enableRealtime: false,
+        healthMonitorFactory: testServerHealth,
       );
       await controller.debugLogin(1);
       await controller.openDirect(
@@ -625,6 +684,7 @@ void main() {
       );
       upload.complete('/public/uploads/image.png');
       await sending;
+      await controller.outboxIdle;
       expect(controller.error, isNull);
       expect(recipient, 'peer-a');
       expect(controller.draftPeer!.id, 'peer-b');
@@ -709,9 +769,11 @@ void main() {
       database: db,
       api: api,
       enableRealtime: false,
+      healthMonitorFactory: testServerHealth,
     );
     await controller.debugLogin(1);
     await controller.openRoom((await db.room('room'))!);
+    await controller.syncNow();
     expect(api.messageRequests, 1);
     remotePts = 50;
     await controller.syncNow();
@@ -756,9 +818,11 @@ void main() {
       database: db,
       api: api,
       enableRealtime: false,
+      healthMonitorFactory: testServerHealth,
     );
     await controller.debugLogin(1);
     await controller.openRoom((await db.room('room'))!);
+    await controller.syncNow();
     await db.upsertMessage(message('ancient', seconds: -100));
     edited = true;
     await controller.syncNow();
@@ -789,6 +853,7 @@ void main() {
       database: db,
       api: api,
       enableRealtime: false,
+      healthMonitorFactory: testServerHealth,
     );
     final first = controller.debugLogin(1);
     await Future<void>.delayed(Duration.zero);
@@ -808,6 +873,7 @@ void main() {
       database: db,
       api: api,
       enableRealtime: false,
+      healthMonitorFactory: testServerHealth,
     );
     final login = controller.debugLogin(1);
     await Future<void>.delayed(Duration.zero);
@@ -823,7 +889,7 @@ void main() {
   });
 
   test(
-    'upload failure leaves no phantom message and image can be selected again',
+    'upload failure retains a durable image and retry reuses its identity',
     () async {
       final api = FakeApi();
       var uploadFails = true;
@@ -836,7 +902,13 @@ void main() {
               'rooms': [],
             };
       api.uploadHandler = (_, _) async {
-        if (uploadFails) throw const ChatApiException('Upload failed');
+        if (uploadFails) {
+          throw const ChatApiException(
+            'Upload failed',
+            statusCode: 400,
+            kind: ChatFailureKind.validation,
+          );
+        }
         return '/public/uploads/image.png';
       };
       api.postHandler = (_, body) async {
@@ -851,17 +923,23 @@ void main() {
         database: db,
         api: api,
         enableRealtime: false,
+        healthMonitorFactory: testServerHealth,
       );
       await controller.debugLogin(1);
       await controller.openDirect(
         const UserProfile(id: 'peer', username: 'peer', displayName: 'Peer'),
       );
       await controller.sendImage(Uint8List.fromList([1]), 'photo.png');
-      expect(controller.error, 'Upload failed');
+      await controller.outboxIdle;
+      expect(controller.error, isNull);
       expect(controller.busy, false);
-      expect(await db.allMessages('draft_peer'), isEmpty);
+      final failed = (await db.allMessages('draft_peer')).single;
+      expect(failed.status, 'failed');
+      expect(failed.lastErrorText, 'Upload failed');
+      expect(failed.uploadBytes, [1]);
       uploadFails = false;
-      await controller.sendImage(Uint8List.fromList([1]), 'photo.png');
+      await controller.retryMessage(failed);
+      await controller.outboxIdle;
       expect(controller.error, isNull);
       expect((await db.allMessages('room')).single.type, 'image');
       await controller.logout();
@@ -882,7 +960,13 @@ void main() {
     };
     api.postHandler = (_, body) async {
       keys.add(body!['idempotencyKey'] as String);
-      if (sendFails) throw const ChatApiException('Send failed');
+      if (sendFails) {
+        throw const ChatApiException(
+          'Send failed',
+          statusCode: 400,
+          kind: ChatFailureKind.validation,
+        );
+      }
       final sent = ChatMessage.fromJson({
         ...message('image', key: keys.last).toJson(),
         'type': 'image',
@@ -894,17 +978,20 @@ void main() {
       database: db,
       api: api,
       enableRealtime: false,
+      healthMonitorFactory: testServerHealth,
     );
     await controller.debugLogin(1);
     await controller.openDirect(
       const UserProfile(id: 'peer', username: 'peer', displayName: 'Peer'),
     );
     await controller.sendImage(Uint8List.fromList([1]), 'photo.png');
+    await controller.outboxIdle;
     final failed = (await db.allMessages('draft_peer')).single;
     expect(failed.status, 'failed');
     expect(failed.imageUrl, '/public/uploads/image.png');
     sendFails = false;
     await controller.retryMessage(failed);
+    await controller.outboxIdle;
     expect(controller.error, isNull);
     expect(uploads, 1);
     expect(keys.first, keys.last);
@@ -982,6 +1069,7 @@ void main() {
       database: db,
       api: api,
       enableRealtime: false,
+      healthMonitorFactory: testServerHealth,
     );
     await controller.debugLogin(1);
     await controller.openRoom((await db.room('room'))!);
@@ -1021,6 +1109,7 @@ void main() {
       database: db,
       api: api,
       enableRealtime: false,
+      healthMonitorFactory: testServerHealth,
     );
     await controller.initialize();
     expect(controller.initialized, true);
@@ -1060,9 +1149,11 @@ void main() {
       database: db,
       api: api,
       enableRealtime: false,
+      healthMonitorFactory: testServerHealth,
     );
     await controller.debugLogin(1);
     await controller.openRoom((await db.room('room'))!);
+    await controller.syncNow();
     for (var i = 1; i <= 70; i++) {
       await db.upsertMessage(message('$i', seconds: i));
     }
@@ -1139,7 +1230,7 @@ void main() {
     await restored.dispose();
   });
 
-  test('presence batches 102 users and availability failures do not block authentication', () async {
+  test('presence batches 102 direct-room peers and availability failures do not block authentication', () async {
     final api = FakeApi()
       ..userList = List.generate(
         102,
@@ -1150,9 +1241,15 @@ void main() {
       if (path == '/rooms/delta') {
         return {
           'requiresFullSync': false,
-          'pts': 0,
+          'pts': 102,
           'epoch': 'epoch',
-          'rooms': [],
+          'rooms': List.generate(
+            102,
+            (i) => {
+              ...payload(room: 'room-$i', pts: i + 1),
+              'peerUserId': 'user-$i',
+            },
+          ),
         };
       }
       final ids = (query!['userIds'] as String).split(',');
@@ -1174,6 +1271,7 @@ void main() {
       database: db,
       api: api,
       enableRealtime: false,
+      healthMonitorFactory: testServerHealth,
     );
     await controller.debugLogin(1);
     expect(controller.error, isNull);
@@ -1215,9 +1313,15 @@ void main() {
         database: db,
         api: api,
         enableRealtime: false,
+        healthMonitorFactory: testServerHealth,
       );
       await controller.debugLogin(1);
       expect(controller.error, isNull);
+      final receiptWait = Stopwatch()..start();
+      while (sizes.length < 2 &&
+          receiptWait.elapsed < const Duration(seconds: 3)) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
       expect(sizes.every((size) => size <= 100), true);
       expect(sizes, containsAll([100, 2]));
       await controller.logout();
@@ -1288,6 +1392,7 @@ void main() {
         database: db,
         api: api,
         enableRealtime: false,
+        healthMonitorFactory: testServerHealth,
       );
       await controller.debugLogin(1);
       await controller.openDirect(
@@ -1334,6 +1439,7 @@ void main() {
         database: db,
         api: api,
         enableRealtime: false,
+        healthMonitorFactory: testServerHealth,
       );
       await controller.debugLogin(1);
       final failed = message('failed', status: 'failed');
@@ -1371,6 +1477,7 @@ void main() {
       database: db,
       api: api,
       enableRealtime: false,
+      healthMonitorFactory: testServerHealth,
     );
     await controller.debugLogin(1);
     final foreign = message(
@@ -1412,6 +1519,7 @@ void main() {
       database: db,
       api: api,
       enableRealtime: false,
+      healthMonitorFactory: testServerHealth,
     );
     await controller.debugLogin(1);
     await controller.openDirect(

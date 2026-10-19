@@ -27,6 +27,7 @@ export const RoomSchema = new Schema(
     avatarUrl: { type: String, default: null },
     createdBy: { type: objectId, required: true },
     participantIds: { type: [objectId], required: true },
+    messageSeq: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true, collection: "rooms" },
 );
@@ -59,6 +60,12 @@ export const RoomMemberSchema = new Schema(
     sortTimestamp: { type: Date, required: true },
     roomPts: { type: Number, default: 0 },
     msgPts: { type: Number, default: 0 },
+    contentPts: { type: Number, default: 0 },
+    headSeq: { type: Number, default: 0 },
+    ownDeliveredSeq: { type: Number, default: 0 },
+    ownSeenSeq: { type: Number, default: 0 },
+    peerDeliveredSeq: { type: Number, default: 0 },
+    peerSeenSeq: { type: Number, default: 0 },
     lastHistoryEditPts: { type: Number, default: 0 },
   },
   {
@@ -93,6 +100,7 @@ export const MessageSchema = new Schema(
     idempotencyKey: { type: String, required: true },
     roomId: { type: objectId, required: true },
     roomType: { type: String, enum: ["direct", "group"], required: true },
+    messageSeq: { type: Number, default: null, min: 1 },
     senderId: { type: objectId, required: true },
     senderName: { type: String, required: true },
     senderAvatarUrl: { type: String, default: null },
@@ -111,8 +119,78 @@ export const MessageSchema = new Schema(
 );
 MessageSchema.index({ senderId: 1, idempotencyKey: 1 }, { unique: true });
 MessageSchema.index({ roomId: 1, createdAt: -1, _id: -1 });
+MessageSchema.index(
+  { roomId: 1, messageSeq: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { messageSeq: { $type: "number" } },
+  },
+);
 MessageSchema.index({ roomId: 1, senderId: 1, seenAt: 1, deliveredAt: 1 });
 MessageSchema.index({ roomId: 1, "replyTo.messageId": 1 });
+
+// Media authorization starts with an exact retained path, not a room history scan.
+MessageSchema.index(
+  { imageUrl: 1 },
+  {
+    name: "media_image_reference",
+    partialFilterExpression: { imageUrl: { $type: "string" } },
+  },
+);
+MessageSchema.index(
+  { "replyTo.imageUrl": 1 },
+  {
+    name: "media_quote_reference",
+    partialFilterExpression: { "replyTo.imageUrl": { $type: "string" } },
+  },
+);
+// Receipt explain over 20,000 rows showed 2,002/4,002 boundary reads and
+// 1,000/2,000 document gap scans. These direct-only partial indexes bound both.
+for (const field of ["deliveredAt", "seenAt"] as const) {
+  MessageSchema.index(
+    { roomId: 1, senderId: 1, createdAt: -1, _id: -1 },
+    {
+      name: `direct_${field}_boundary`,
+      partialFilterExpression: {
+        roomType: "direct",
+        [field]: { $type: "date" },
+      },
+    },
+  );
+  MessageSchema.index(
+    { roomId: 1, senderId: 1, createdAt: -1, _id: -1 },
+    {
+      name: `direct_${field}_gap`,
+      partialFilterExpression: { roomType: "direct", [field]: null },
+    },
+  );
+}
+
+export const UploadSchema = new Schema(
+  {
+    filename: { type: String, required: true },
+    ownerId: { type: objectId, required: true },
+    mime: { type: String, required: true },
+    bytes: { type: Number, required: true },
+    width: { type: Number, required: true },
+    height: { type: Number, required: true },
+    frames: { type: Number, required: true },
+    attachedAt: { type: Date, default: null },
+    deletedAt: { type: Date, default: null },
+    orphanEligibleAt: { type: Date, required: true },
+    state: {
+      type: String,
+      enum: ["retained", "deleting", "deleted"],
+      default: "retained",
+    },
+  },
+  { timestamps: true, collection: "uploads" },
+);
+UploadSchema.index({ filename: 1 }, { unique: true });
+UploadSchema.index({ attachedAt: 1, orphanEligibleAt: 1 });
+export type Upload = InferSchemaType<typeof UploadSchema> & {
+  _id: Types.ObjectId;
+};
 
 export type User = InferSchemaType<typeof UserSchema> & { _id: Types.ObjectId };
 export type Room = InferSchemaType<typeof RoomSchema> & { _id: Types.ObjectId };
@@ -155,6 +233,7 @@ export function messageDto(message: Message) {
     idempotencyKey: message.idempotencyKey,
     roomId: message.roomId.toString(),
     roomType: message.roomType,
+    messageSeq: message.messageSeq ?? null,
     senderId: message.senderId.toString(),
     senderName: message.senderName,
     senderAvatarUrl: message.senderAvatarUrl,
@@ -182,6 +261,23 @@ export function messageDto(message: Message) {
   };
 }
 export type FullMessageDto = ReturnType<typeof messageDto>;
+export type ReplySnapshotDto = NonNullable<FullMessageDto["replyTo"]>;
+export function replySnapshotDto(message: Message): ReplySnapshotDto {
+  return {
+    messageId: message._id.toString(),
+    senderId: message.senderId.toString(),
+    senderName: message.senderName,
+    type: message.type,
+    text: message.text.slice(0, 120),
+    imageUrl: message.imageUrl,
+    isDeleted: message.isDeletedForAll,
+  };
+}
+export interface ReceiptSummaryDto {
+  deliveredThrough: string | null;
+  seenThrough: string | null;
+  hasGaps: boolean;
+}
 export interface HydratedRoomPayload {
   roomId: string;
   roomType: "direct" | "group";
@@ -196,9 +292,19 @@ export interface HydratedRoomPayload {
   sortTimestamp: string;
   roomPts: number;
   msgPts: number;
+  contentPts?: number;
+  headSeq?: number;
+  ownDeliveredSeq?: number;
+  ownSeenSeq?: number;
+  peerDeliveredSeq?: number;
+  peerSeenSeq?: number;
+  /** Present only for a receipt mutation restricted to sequenced messages. */
+  sequenceReceipt?: boolean;
+  receiptProtocol?: "legacy" | "sequence";
   lastHistoryEditPts: number;
   lastMessage: FullMessageDto | null;
   updatedMessage?: FullMessageDto | null;
+  quoteUpdate?: ReplySnapshotDto;
   eventType: EventType;
   actionTimestamp: string;
 }

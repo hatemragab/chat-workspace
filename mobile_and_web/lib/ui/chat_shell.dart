@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/exports.dart';
 import 'dialogs.dart';
 import 'messages_pane.dart';
+import 'flutter_inspector.dart';
 import 'theme.dart';
+import 'auth_screen.dart';
 
 class ChatShell extends ConsumerStatefulWidget {
   const ChatShell({super.key});
@@ -13,56 +16,116 @@ class ChatShell extends ConsumerStatefulWidget {
 }
 
 class _ChatShellState extends ConsumerState<ChatShell> {
+  final _searchController = TextEditingController();
   String _search = '';
   bool _unreadOnly = false;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _clearFilters() {
+    _searchController.clear();
+    setState(() {
+      _search = '';
+      _unreadOnly = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = ref.watch(chatControllerProvider);
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (c.error != null)
-              MaterialBanner(
-                content: Text(c.error!, style: const TextStyle(fontSize: 13)),
-                leading: const Icon(Icons.info_outline),
-                actions: [
-                  TextButton(
-                    onPressed: c.clearError,
-                    child: const Text('Dismiss'),
+    c.debugInspector.recordBuild(
+      'ChatShell',
+      context: c.lastStateContext,
+      notificationId: c.lastStateNotificationId,
+    );
+    final selected = c.selectedRoom != null || c.draftPeer != null;
+    // Conversations share the shell route. Consume system Back while one is
+    // open, then allow the platform to handle Back normally from the inbox.
+    return PopScope<void>(
+      canPop: !selected,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && selected) {
+          FocusManager.instance.primaryFocus?.unfocus();
+          c.closeRoom();
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              if (c.requiresReauthentication)
+                MaterialBanner(
+                  content: const Text(
+                    'Your session ended. Saved messages and pending images are retained.',
                   ),
-                ],
-              ),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final wide = constraints.maxWidth >= 800;
-                  final selected =
-                      c.selectedRoom != null || c.draftPeer != null;
-                  final sidebar = _sidebar(c);
-                  if (!wide) {
-                    return selected
-                        ? const MessagesPane(compact: true)
-                        : sidebar;
-                  }
-                  return Row(
-                    children: [
-                      SizedBox(
-                        width: constraints.maxWidth >= 1200 ? 350 : 310,
-                        child: sidebar,
+                  actions: [
+                    TextButton(
+                      key: const Key('reauthenticate'),
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => const Dialog(
+                          child: SizedBox(
+                            width: 520,
+                            height: 740,
+                            child: AuthScreen(),
+                          ),
+                        ),
                       ),
-                      const VerticalDivider(width: 1),
-                      Expanded(
-                        child: selected
-                            ? const MessagesPane()
-                            : _emptyPane(context),
-                      ),
-                    ],
-                  );
-                },
+                      child: const Text('Sign in again'),
+                    ),
+                  ],
+                ),
+              if (c.presenceDegraded)
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    'Online status is temporarily unavailable. Messaging remains available.',
+                  ),
+                ),
+              if (c.error != null)
+                MaterialBanner(
+                  content: Text(c.error!, style: const TextStyle(fontSize: 13)),
+                  leading: const Icon(Icons.info_outline),
+                  actions: [
+                    TextButton(
+                      onPressed: c.clearError,
+                      child: const Text('Dismiss'),
+                    ),
+                  ],
+                ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 800;
+                    final sidebar = _sidebar(c);
+                    if (!wide) {
+                      return selected
+                          ? const MessagesPane(compact: true)
+                          : sidebar;
+                    }
+                    return Row(
+                      children: [
+                        SizedBox(
+                          width: constraints.maxWidth >= 1200 ? 350 : 310,
+                          child: sidebar,
+                        ),
+                        const VerticalDivider(width: 1),
+                        Expanded(
+                          child: selected
+                              ? const MessagesPane()
+                              : _emptyPane(context),
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -72,38 +135,30 @@ class _ChatShellState extends ConsumerState<ChatShell> {
     final rooms = c.rooms
         .where(
           (r) =>
-              r.displayTitle.toLowerCase().contains(_search.toLowerCase()) &&
+              r.displayTitle.toLowerCase().contains(
+                _search.trim().toLowerCase(),
+              ) &&
               (!_unreadOnly || r.unreadCount > 0),
         )
         .toList();
     return ColoredBox(
-      color: Colors.white,
+      color: ChatColors.of(context).surface,
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 12, 16),
-            child: Row(
-              children: [
-                const BrandMark(),
-                const SizedBox(width: 11),
-                const Expanded(
-                  child: Text(
-                    'Workspace',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -.5,
-                    ),
-                  ),
-                ),
+          SizedBox(
+            height: 72,
+            child: AppBar(
+              key: const Key('inbox-app-bar'),
+              primary: false,
+              automaticallyImplyLeading: false,
+              toolbarHeight: 72,
+              title: const Text('Chats'),
+              actions: [
                 IconButton(
                   key: const Key('new-chat'),
                   tooltip: 'New conversation',
                   onPressed: () => showPeopleDialog(context),
-                  icon: const Icon(
-                    Icons.edit_square,
-                    color: ChatColors.primary,
-                  ),
+                  icon: const Icon(Icons.edit_square),
                 ),
                 PopupMenuButton<String>(
                   tooltip: 'Workspace menu',
@@ -113,6 +168,16 @@ class _ChatShellState extends ConsumerState<ChatShell> {
                     }
                     if (value == 'sync') c.syncNow();
                     if (value == 'diagnostics') showDiagnosticsDialog(context);
+                    if (value == 'inspector') {
+                      c.refreshInspectorGauges();
+                      showDialog<void>(
+                        context: context,
+                        builder: (_) => FlutterInspectorDialog(
+                          inspector: c.debugInspector,
+                          onRefresh: c.refreshInspectorGauges,
+                        ),
+                      );
+                    }
                     if (value == 'logout') c.logout();
                   },
                   itemBuilder: (_) => [
@@ -125,6 +190,11 @@ class _ChatShellState extends ConsumerState<ChatShell> {
                       value: 'diagnostics',
                       child: Text('Sync diagnostics'),
                     ),
+                    if (kDebugMode)
+                      const PopupMenuItem(
+                        value: 'inspector',
+                        child: Text('Flutter inspector'),
+                      ),
                     const PopupMenuDivider(),
                     const PopupMenuItem(
                       value: 'logout',
@@ -135,65 +205,104 @@ class _ChatShellState extends ConsumerState<ChatShell> {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: TextField(
-              key: const Key('search-conversations'),
-              onChanged: (s) => setState(() => _search = s),
-              decoration: const InputDecoration(
-                hintText: 'Search conversations',
-                prefixIcon: Icon(Icons.search, size: 20),
-                contentPadding: EdgeInsets.all(12),
-                isDense: true,
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: c.syncNow,
+              child: CustomScrollView(
+                key: const Key('rooms-list'),
+                physics: const AlwaysScrollableScrollPhysics(),
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          child: TextField(
+                            key: const Key('search-conversations'),
+                            controller: _searchController,
+                            textInputAction: TextInputAction.search,
+                            onChanged: (s) => setState(() => _search = s),
+                            decoration: InputDecoration(
+                              hintText: 'Search conversations',
+                              prefixIcon: const Icon(Icons.search, size: 20),
+                              suffixIcon: _search.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'Clear search',
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setState(() => _search = '');
+                                      },
+                                      icon: const Icon(Icons.close),
+                                    ),
+                              contentPadding: const EdgeInsets.all(12),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 16, 18, 10),
+                          child: Wrap(
+                            spacing: 8,
+                            children: [
+                              ChoiceChip(
+                                label: const Text('All chats'),
+                                selected: !_unreadOnly,
+                                onSelected: (_) =>
+                                    setState(() => _unreadOnly = false),
+                                showCheckmark: false,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              ChoiceChip(
+                                label: const Text('Unread'),
+                                selected: _unreadOnly,
+                                onSelected: (_) =>
+                                    setState(() => _unreadOnly = true),
+                                showCheckmark: false,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (c.busy && c.rooms.isEmpty)
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (rooms.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _emptyList(),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      sliver: SliverList.builder(
+                        itemCount: rooms.length + (c.hasMoreRooms ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == rooms.length) {
+                            return Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: TextButton.icon(
+                                key: const Key('load-more-rooms'),
+                                onPressed: c.busy ? null : c.loadMoreRooms,
+                                icon: const Icon(Icons.expand_more),
+                                label: const Text('Load more chats'),
+                              ),
+                            );
+                          }
+                          return _roomTile(c, rooms[index]);
+                        },
+                      ),
+                    ),
+                ],
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 10),
-            child: Wrap(
-              spacing: 8,
-              children: [
-                ChoiceChip(
-                  label: const Text('All chats'),
-                  selected: !_unreadOnly,
-                  onSelected: (_) => setState(() => _unreadOnly = false),
-                  showCheckmark: false,
-                  visualDensity: VisualDensity.compact,
-                ),
-                ChoiceChip(
-                  label: const Text('Unread'),
-                  selected: _unreadOnly,
-                  onSelected: (_) => setState(() => _unreadOnly = true),
-                  showCheckmark: false,
-                  visualDensity: VisualDensity.compact,
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: c.busy && c.rooms.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : rooms.isEmpty
-                ? _emptyList()
-                : ListView.builder(
-                    key: const Key('rooms-list'),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    itemCount: rooms.length + (c.hasMoreRooms ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == rooms.length) {
-                        return Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: TextButton.icon(
-                            key: const Key('load-more-rooms'),
-                            onPressed: c.busy ? null : c.loadMoreRooms,
-                            icon: const Icon(Icons.expand_more),
-                            label: const Text('Load more chats'),
-                          ),
-                        );
-                      }
-                      return _roomTile(c, rooms[index]);
-                    },
-                  ),
           ),
           const Divider(),
           Padding(
@@ -214,6 +323,8 @@ class _ChatShellState extends ConsumerState<ChatShell> {
                     children: [
                       Text(
                         c.currentUser!.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -223,9 +334,11 @@ class _ChatShellState extends ConsumerState<ChatShell> {
                       Text(
                         c.connectionStatus,
                         key: const Key('connection-status'),
-                        style: const TextStyle(
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
                           fontSize: 11,
-                          color: ChatColors.muted,
+                          color: ChatColors.of(context).muted,
                         ),
                       ),
                     ],
@@ -235,20 +348,20 @@ class _ChatShellState extends ConsumerState<ChatShell> {
                   key: const Key('sync-diagnostics'),
                   tooltip: 'Sync diagnostics',
                   onPressed: () => showDiagnosticsDialog(context),
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.storage_outlined,
                     size: 20,
-                    color: ChatColors.muted,
+                    color: ChatColors.of(context).muted,
                   ),
                 ),
                 IconButton(
                   key: const Key('switch-account'),
                   tooltip: 'Switch account',
                   onPressed: c.logout,
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.logout_rounded,
                     size: 20,
-                    color: ChatColors.muted,
+                    color: ChatColors.of(context).muted,
                   ),
                 ),
               ],
@@ -265,7 +378,11 @@ class _ChatShellState extends ConsumerState<ChatShell> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.forum_outlined, size: 42, color: ChatColors.muted),
+          Icon(
+            Icons.forum_outlined,
+            size: 42,
+            color: ChatColors.of(context).muted,
+          ),
           const SizedBox(height: 16),
           Text(
             _search.isNotEmpty || _unreadOnly
@@ -275,17 +392,28 @@ class _ChatShellState extends ConsumerState<ChatShell> {
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Find someone and say hello.',
+          Text(
+            _search.isNotEmpty
+                ? 'Try a different name or clear your search.'
+                : _unreadOnly
+                ? 'You’re all caught up.'
+                : 'Find someone and say hello.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: ChatColors.muted),
+            style: TextStyle(color: ChatColors.of(context).muted),
           ),
           const SizedBox(height: 20),
-          FilledButton.tonalIcon(
-            onPressed: () => showPeopleDialog(context),
-            icon: const Icon(Icons.add),
-            label: const Text('Start a conversation'),
-          ),
+          if (_search.isNotEmpty || _unreadOnly)
+            TextButton.icon(
+              onPressed: _clearFilters,
+              icon: const Icon(Icons.filter_alt_off_outlined),
+              label: const Text('Clear filters'),
+            )
+          else
+            FilledButton.tonalIcon(
+              onPressed: () => showPeopleDialog(context),
+              icon: const Icon(Icons.add),
+              label: const Text('Start a conversation'),
+            ),
         ],
       ),
     ),
@@ -305,7 +433,7 @@ class _ChatShellState extends ConsumerState<ChatShell> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
-        color: selected ? const Color(0xFFEAF3FB) : Colors.transparent,
+        color: selected ? ChatColors.of(context).selected : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           key: Key('room-${room.roomId}'),
@@ -340,25 +468,25 @@ class _ChatShellState extends ConsumerState<ChatShell> {
                                 fontWeight: room.unreadCount > 0
                                     ? FontWeight.w700
                                     : FontWeight.w600,
-                                fontSize: 14,
+                                fontSize: 15,
                               ),
                             ),
                           ),
                           if (room.isMuted)
-                            const Padding(
+                            Padding(
                               padding: EdgeInsets.only(left: 4),
                               child: Icon(
                                 Icons.notifications_off_outlined,
                                 size: 13,
-                                color: ChatColors.muted,
+                                color: ChatColors.of(context).muted,
                               ),
                             ),
                           const SizedBox(width: 8),
                           Text(
                             _roomTime(room.sortTimestamp),
-                            style: const TextStyle(
-                              color: ChatColors.muted,
-                              fontSize: 10,
+                            style: TextStyle(
+                              color: ChatColors.of(context).muted,
+                              fontSize: 11,
                             ),
                           ),
                         ],
@@ -375,9 +503,9 @@ class _ChatShellState extends ConsumerState<ChatShell> {
                               preview,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: ChatColors.muted,
-                                fontSize: 12,
+                              style: TextStyle(
+                                color: ChatColors.of(context).muted,
+                                fontSize: 14,
                               ),
                             ),
                           ),
@@ -391,7 +519,7 @@ class _ChatShellState extends ConsumerState<ChatShell> {
                               ),
                               decoration: BoxDecoration(
                                 color: room.isMuted
-                                    ? ChatColors.muted
+                                    ? ChatColors.of(context).muted
                                     : ChatColors.primary,
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -406,10 +534,10 @@ class _ChatShellState extends ConsumerState<ChatShell> {
                               ),
                             )
                           else if (room.pinAt != null)
-                            const Icon(
+                            Icon(
                               Icons.push_pin,
                               size: 14,
-                              color: ChatColors.muted,
+                              color: ChatColors.of(context).muted,
                             ),
                         ],
                       ),
@@ -421,7 +549,10 @@ class _ChatShellState extends ConsumerState<ChatShell> {
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   iconSize: 17,
-                  icon: const Icon(Icons.more_vert, color: ChatColors.muted),
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: ChatColors.of(context).muted,
+                  ),
                   onSelected: (value) {
                     if (value == 'pin') {
                       c.setPreferences(room, pin: room.pinAt == null);
@@ -452,11 +583,19 @@ class _ChatShellState extends ConsumerState<ChatShell> {
   }
 
   Widget _previewStatus(ChatMessage message, String roomId) {
-    final sending = message.status == 'sending';
-    final failed = message.status == 'failed';
-    final seen = message.seenAt != null;
-    final delivered = message.deliveredAt != null;
-    final label = sending
+    final sending =
+        const ['queued', 'sending'].contains(message.status) &&
+        !message.outboxPaused;
+    final failed = message.status == 'failed' || message.outboxPaused;
+    final seen = message.isSeen;
+    final delivered = message.isDelivered;
+    final label = failed
+        ? message.outboxPaused
+              ? 'Message needs attention'
+              : 'Message not sent'
+        : message.status == 'queued'
+        ? 'Message queued for automatic sending'
+        : sending
         ? 'Sending message'
         : failed
         ? 'Message not sent'
@@ -481,17 +620,17 @@ class _ChatShellState extends ConsumerState<ChatShell> {
           color: failed
               ? Theme.of(context).colorScheme.error
               : seen
-              ? ChatColors.primary
-              : ChatColors.muted,
+              ? ChatColors.seen
+              : ChatColors.delivered,
         ),
       ),
     );
   }
 
   Widget _emptyPane(BuildContext context) => Container(
-    color: ChatColors.chatCanvas,
+    color: ChatColors.of(context).chatCanvas,
     child: Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -499,7 +638,7 @@ class _ChatShellState extends ConsumerState<ChatShell> {
             Container(
               padding: const EdgeInsets.all(27),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .7),
+                color: ChatColors.of(context).surface.withValues(alpha: .7),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -520,9 +659,12 @@ class _ChatShellState extends ConsumerState<ChatShell> {
               ),
             ),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               'Choose a chat or start something new.',
-              style: TextStyle(color: ChatColors.muted, fontSize: 15),
+              style: TextStyle(
+                color: ChatColors.of(context).muted,
+                fontSize: 15,
+              ),
             ),
             const SizedBox(height: 28),
             FilledButton.icon(

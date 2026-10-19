@@ -4,3 +4,7 @@ export 'chat_controller.dart';
 export 'inbox_sync_queue.dart';
 export 'inbox_sync_service.dart';
 export 'models.dart';
+export 'debug_inspector.dart';
+export 'local_log_exporter.dart';
+export 'outbox_send_queue.dart';
+export 'server_health_monitor.dart';

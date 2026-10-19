@@ -1,0 +1,3 @@
+# Unified diff context lines contain one required space on otherwise blank lines.
+# Preserve the pinned patch bytes (and its verified digest) during whitespace checks.
+scripts/vector-file-readiness.patch whitespace=-blank-at-eol

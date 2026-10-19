@@ -1,6 +1,17 @@
-import { Body, Controller, Get, HttpCode, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  Post,
+  Req,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { JwtService } from "@nestjs/jwt";
 import { Request } from "express";
+import { sessionHash } from "./session";
+import { UnauthorizedException } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { CurrentUser, Public } from "./auth.guard";
 import { DebugLoginDto, LoginDto, SignupDto } from "./dto";
@@ -11,6 +22,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly redis: RedisSyncService,
+    private readonly jwt: JwtService,
   ) {}
   @Public() @Get("debug-users") debugUsers() {
     return this.auth.debugUsers();
@@ -36,7 +48,19 @@ export class AuthController {
   }
   @ApiBearerAuth() @Post("centrifugo-token") @HttpCode(200) async token(
     @CurrentUser() userId: string,
+    @Headers("authorization") authorization: string,
+    @Req() request: Request,
   ) {
-    return { centrifugoToken: await this.auth.centrifugoToken(userId) };
+    await this.redis.limitRealtime("token", userId, request.ip ?? "unknown");
+    const id = sessionHash(authorization);
+    if (await this.redis.isSessionRetired(userId, id))
+      throw new UnauthorizedException("Session ended");
+    return {
+      centrifugoToken: await this.auth.centrifugoToken(
+        userId,
+        id,
+        this.jwt.decode<{ exp: number }>(authorization.slice(7)).exp,
+      ),
+    };
   }
 }

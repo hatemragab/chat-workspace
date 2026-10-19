@@ -1,0 +1,25 @@
+[extend]
+useDefault = true
+
+# These exact public test fixtures are nonfunctional credentials. Require both
+# their source path and their exact value so real credentials still fail scans.
+[[allowlists]]
+description = "Synthetic UUID used to validate send idempotency input"
+condition = "AND"
+paths = ['''(^|/)backend/test/backend-fixes\.test\.ts$''']
+regexTarget = "secret"
+regexes = ['''^123e4567-e89b-42d3-a456-426614174000$''']
+
+[[allowlists]]
+description = "Invalid JWT signature used only in credential-redaction tests"
+condition = "AND"
+paths = ['''(^|/)mobile_and_web/test/core/debug_(inspector|traffic_logger)_test\.dart$''']
+regexTarget = "secret"
+regexes = ['''^eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiJ1c2VyIn0\.jwtSignature$''']
+
+[[allowlists]]
+description = "Public WebSocket handshake nonce from RFC 6455 section 1.3"
+condition = "AND"
+paths = ['''(^|/)scripts/backend-logs-proxy\.test\.mjs$''']
+regexTarget = "secret"
+regexes = ['''^dGhlIHNhbXBsZSBub25jZQ==$''']

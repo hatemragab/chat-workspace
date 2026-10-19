@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ConfigService } from "@nestjs/config";
+import { ValidationPipe } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import { Types } from "mongoose";
+import { PreferencesDto } from "../src/chat/dto";
 import { AuthService } from "../src/auth/auth.service";
 import { directPairKey, cursorBefore } from "../src/chat/chat.service";
 import { hasImageSignature } from "../src/chat/uploads.controller";
@@ -89,8 +93,52 @@ test("debug login and listing are absent outside development", async () => {
   assert.throws(() => auth.requireDebug(), { status: 404 });
   await assert.rejects(auth.debugLogin(1), { status: 404 });
 });
+test("independent logins issue distinct access JWTs even with the same user and issuance second", async (context) => {
+  context.mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 9, 16) });
+  const user = {
+    _id: new Types.ObjectId(),
+    username: "debug_user_1",
+    email: "debug1@example.test",
+    displayName: "User 1",
+    isDebugUser: true,
+    debugUserNumber: 1,
+    pts: 0,
+  };
+  const auth = new AuthService(
+    { users: { findOne: () => ({ lean: async () => user }) } } as never,
+    new JwtService(),
+    new ConfigService({
+      NODE_ENV: "development",
+      JWT_SECRET: "synthetic-access-signing-secret",
+      CENTRIFUGO_TOKEN_HMAC_SECRET_KEY: "synthetic-realtime-signing-secret",
+    }),
+  );
+  const first = await auth.debugLogin(1);
+  const second = await auth.debugLogin(1);
+  assert.notEqual(first.accessToken, second.accessToken);
+  const jwt = new JwtService();
+  const firstClaims = jwt.decode(first.accessToken);
+  const secondClaims = jwt.decode(second.accessToken);
+  assert.equal(firstClaims.sub, secondClaims.sub);
+  assert.equal(firstClaims.iat, secondClaims.iat);
+  assert.match(firstClaims.jti, /^[a-f0-9-]{36}$/);
+  assert.notEqual(firstClaims.jti, secondClaims.jti);
+});
+test("optional preference booleans accept omission but reject null and coerced values", async () => {
+  const pipe = new ValidationPipe({ transform: true, whitelist: true });
+  const validate = (value: unknown) =>
+    pipe.transform(value, { type: "body", metatype: PreferencesDto });
+  assert.equal((await validate({ pin: false })).pin, false);
+  assert.equal((await validate({ isMuted: true })).isMuted, true);
+  const omitted = await validate({});
+  assert.equal(omitted.pin, undefined);
+  assert.equal(omitted.isMuted, undefined);
+  for (const field of ["pin", "isMuted"])
+    for (const value of [null, 0, "false", [], {}])
+      await assert.rejects(validate({ [field]: value }), { status: 400 });
+});
 test("OpenAPI describes every application route with protected membership APIs and schemas", () => {
-  assert.equal(Object.keys(openApiDocument.paths).length, 24);
+  assert.equal(Object.keys(openApiDocument.paths).length, 26);
   assert.deepEqual(openApiDocument.paths["/messages"]!.post!.security, [
     { bearerAuth: [] },
   ]);
@@ -100,4 +148,30 @@ test("OpenAPI describes every application route with protected membership APIs a
   );
   assert.ok(openApiDocument.components!.schemas!.InboxPublication);
   assert.ok(openApiDocument.paths["/uploads/image"]!.post!.requestBody);
+  assert.deepEqual(openApiDocument.paths["/presence/offline"]!.post!.security, [
+    { bearerAuth: [] },
+  ]);
+  assert.equal(
+    openApiDocument.paths["/presence/offline"]!.post!.requestBody,
+    undefined,
+  );
+  const schemas = openApiDocument.components!.schemas!;
+  const hydrated = schemas.HydratedRoom as {
+    properties: Record<string, unknown>;
+    required: string[];
+  };
+  assert.ok(hydrated.properties.quoteUpdate);
+  assert.ok(!hydrated.required.includes("quoteUpdate"));
+  const messages = openApiDocument.paths["/rooms/{roomId}/messages"]!.get!
+    .responses["200"] as unknown as {
+    content: {
+      "application/json": {
+        schema: { properties: Record<string, unknown>; required: string[] };
+      };
+    };
+  };
+  assert.ok(messages.content["application/json"].schema.properties.receipts);
+  assert.ok(
+    !messages.content["application/json"].schema.required.includes("receipts"),
+  );
 });

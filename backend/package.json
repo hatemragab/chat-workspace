@@ -8,12 +8,19 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
-    "start:dev": "ts-node src/main.ts",
+    "start:dev": "node ../scripts/backend-debug.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
     "test:integration": "tsx --test test/integration/*.test.ts",
-    "format": "prettier --write src test *.json *.md",
-    "format:check": "prettier --check src test *.json *.md"
+    "format": "prettier --write src test scripts *.json *.md",
+    "format:check": "prettier --check src test scripts *.json *.md",
+    "start:debug": "node ../scripts/backend-debug.mjs",
+    "logs:install": "node ../scripts/backend-logs.mjs install",
+    "logs": "node ../scripts/backend-logs.mjs start",
+    "logs:collector:install": "node ../scripts/local-logs.mjs install",
+    "logs:collector": "node ../scripts/local-logs.mjs start",
+    "media:cleanup": "tsx scripts/media-cleanup.ts",
+    "benchmark:local": "tsx scripts/benchmark-local.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.0",
@@ -23,7 +30,7 @@
     "@nestjs/mongoose": "^11.0.0",
     "@nestjs/platform-express": "^11.1.0",
     "@nestjs/serve-static": "^5.0.0",
-    "@nestjs/swagger": "^11.0.0",
+    "@nestjs/swagger": "^11.4.7",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
@@ -33,6 +40,7 @@
     "multer": "^2.0.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "sharp": "^0.35.5",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
@@ -44,5 +52,10 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
+  },
+  "overrides": {
+    "@nestjs/swagger": {
+      "js-yaml": "^5.5.0"
+    }
   }
 }

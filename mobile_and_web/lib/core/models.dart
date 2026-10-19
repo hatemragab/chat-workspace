@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 Map<String, dynamic> jsonMap(Object? value) =>
     Map<String, dynamic>.from(value as Map);
@@ -99,6 +100,18 @@ class ChatMessage {
     this.isDeletedForAll = false,
     this.deliveredAt,
     this.seenAt,
+    this.uploadBytes,
+    this.uploadFilename,
+    this.messageSeq,
+    this.deliveredByCursor = false,
+    this.seenByCursor = false,
+    this.enqueueOrder,
+    this.retryCount = 0,
+    this.nextAttemptAt,
+    this.lastErrorCode,
+    this.lastErrorText,
+    this.outcomeUnknown = false,
+    this.outboxPaused = false,
   });
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
     id: (json['_id'] ?? json['id']) as String,
@@ -120,6 +133,16 @@ class ChatMessage {
     deliveredAt: parseTime(json['deliveredAt']),
     seenAt: parseTime(json['seenAt']),
     createdAt: parseTime(json['createdAt'])!,
+    messageSeq: (json['messageSeq'] as num?)?.toInt(),
+    deliveredByCursor: json['deliveredByCursor'] == true,
+    seenByCursor: json['seenByCursor'] == true,
+    enqueueOrder: (json['enqueueOrder'] as num?)?.toInt(),
+    retryCount: intValue(json['retryCount']),
+    nextAttemptAt: parseTime(json['nextAttemptAt']),
+    lastErrorCode: json['lastErrorCode'] as String?,
+    lastErrorText: json['lastErrorText'] as String?,
+    outcomeUnknown: json['outcomeUnknown'] == true,
+    outboxPaused: json['outboxPaused'] == true,
   );
   final String id,
       idempotencyKey,
@@ -134,6 +157,18 @@ class ChatMessage {
   final bool isEdited, isDeletedForAll;
   final DateTime? deliveredAt, seenAt;
   final DateTime createdAt;
+  final Uint8List? uploadBytes;
+  final String? uploadFilename;
+  final int? messageSeq;
+  final bool deliveredByCursor, seenByCursor;
+  final int? enqueueOrder;
+  final int retryCount;
+  final DateTime? nextAttemptAt;
+  final String? lastErrorCode, lastErrorText;
+  final bool outcomeUnknown, outboxPaused;
+  bool get isSeen => seenAt != null || (status == 'sent' && seenByCursor);
+  bool get isDelivered =>
+      deliveredAt != null || (status == 'sent' && deliveredByCursor) || isSeen;
   Map<String, dynamic> toJson() => {
     'id': id,
     'idempotencyKey': idempotencyKey,
@@ -152,6 +187,16 @@ class ChatMessage {
     'deliveredAt': deliveredAt?.toIso8601String(),
     'seenAt': seenAt?.toIso8601String(),
     'createdAt': createdAt.toIso8601String(),
+    'messageSeq': messageSeq,
+    'deliveredByCursor': deliveredByCursor,
+    'seenByCursor': seenByCursor,
+    'enqueueOrder': enqueueOrder,
+    'retryCount': retryCount,
+    'nextAttemptAt': nextAttemptAt?.toIso8601String(),
+    'lastErrorCode': lastErrorCode,
+    'lastErrorText': lastErrorText,
+    'outcomeUnknown': outcomeUnknown,
+    'outboxPaused': outboxPaused,
   };
   ChatMessage copyWith({
     String? roomId,
@@ -159,14 +204,57 @@ class ChatMessage {
     DateTime? deliveredAt,
     DateTime? seenAt,
     ReplySnapshot? replyTo,
-  }) => ChatMessage.fromJson({
-    ...toJson(),
-    'roomId': ?roomId,
-    'status': ?status,
-    if (deliveredAt != null) 'deliveredAt': deliveredAt.toIso8601String(),
-    if (seenAt != null) 'seenAt': seenAt.toIso8601String(),
-    if (replyTo != null) 'replyTo': replyTo.toJson(),
-  });
+    String? imageUrl,
+    bool clearUpload = false,
+    bool? deliveredByCursor,
+    bool? seenByCursor,
+    int? enqueueOrder,
+    int? retryCount,
+    DateTime? nextAttemptAt,
+    String? lastErrorCode,
+    String? lastErrorText,
+    bool? outcomeUnknown,
+    bool? outboxPaused,
+    bool clearError = false,
+    bool clearRetryAt = false,
+    bool clearOutbox = false,
+  }) => ChatMessage(
+    id: id,
+    idempotencyKey: idempotencyKey,
+    roomId: roomId ?? this.roomId,
+    peerUserId: peerUserId,
+    senderId: senderId,
+    senderName: senderName,
+    senderAvatarUrl: senderAvatarUrl,
+    type: type,
+    text: text,
+    createdAt: createdAt,
+    imageUrl: imageUrl ?? this.imageUrl,
+    replyTo: replyTo ?? this.replyTo,
+    status: status ?? this.status,
+    isEdited: isEdited,
+    isDeletedForAll: isDeletedForAll,
+    deliveredAt: deliveredAt ?? this.deliveredAt,
+    seenAt: seenAt ?? this.seenAt,
+    uploadBytes: clearUpload ? null : uploadBytes,
+    uploadFilename: clearUpload ? null : uploadFilename,
+    messageSeq: messageSeq,
+    deliveredByCursor: deliveredByCursor ?? this.deliveredByCursor,
+    seenByCursor: seenByCursor ?? this.seenByCursor,
+    enqueueOrder: clearOutbox ? null : enqueueOrder ?? this.enqueueOrder,
+    retryCount: clearOutbox ? 0 : retryCount ?? this.retryCount,
+    nextAttemptAt: clearOutbox || clearRetryAt
+        ? null
+        : nextAttemptAt ?? this.nextAttemptAt,
+    lastErrorCode: clearOutbox || clearError
+        ? null
+        : lastErrorCode ?? this.lastErrorCode,
+    lastErrorText: clearOutbox || clearError
+        ? null
+        : lastErrorText ?? this.lastErrorText,
+    outcomeUnknown: !clearOutbox && (outcomeUnknown ?? this.outcomeUnknown),
+    outboxPaused: !clearOutbox && (outboxPaused ?? this.outboxPaused),
+  );
 }
 
 class ChatRoom {
@@ -187,6 +275,12 @@ class ChatRoom {
     this.lastHistoryEditPts = 0,
     this.messagesSyncedPts = 0,
     this.lastMessage,
+    this.contentPts,
+    this.peerDeliveredSeq = 0,
+    this.peerSeenSeq = 0,
+    this.ownDeliveredSeq = 0,
+    this.ownSeenSeq = 0,
+    this.receiptProtocol = 'legacy',
   });
   factory ChatRoom.fromJson(Map<String, dynamic> json) => ChatRoom(
     roomId: (json['roomId'] ?? json['_id']) as String,
@@ -204,6 +298,12 @@ class ChatRoom {
     msgPts: intValue(json['msgPts']),
     lastHistoryEditPts: intValue(json['lastHistoryEditPts']),
     messagesSyncedPts: intValue(json['messagesSyncedPts']),
+    contentPts: (json['contentPts'] as num?)?.toInt(),
+    peerDeliveredSeq: intValue(json['peerDeliveredSeq']),
+    peerSeenSeq: intValue(json['peerSeenSeq']),
+    ownDeliveredSeq: intValue(json['ownDeliveredSeq']),
+    ownSeenSeq: intValue(json['ownSeenSeq']),
+    receiptProtocol: json['receiptProtocol'] as String? ?? 'legacy',
     lastMessage: json['lastMessage'] == null
         ? null
         : ChatMessage.fromJson(jsonMap(json['lastMessage'])),
@@ -215,6 +315,9 @@ class ChatRoom {
   final DateTime sortTimestamp;
   final DateTime? pinAt, clearedAt, deletedAt;
   final ChatMessage? lastMessage;
+  final int? contentPts;
+  final int peerDeliveredSeq, peerSeenSeq, ownDeliveredSeq, ownSeenSeq;
+  final String receiptProtocol;
   Map<String, dynamic> toJson() => {
     'roomId': roomId,
     'roomType': roomType,
@@ -232,7 +335,65 @@ class ChatRoom {
     'lastHistoryEditPts': lastHistoryEditPts,
     'messagesSyncedPts': messagesSyncedPts,
     'lastMessage': lastMessage?.toJson(),
+    'contentPts': contentPts,
+    'peerDeliveredSeq': peerDeliveredSeq,
+    'peerSeenSeq': peerSeenSeq,
+    'ownDeliveredSeq': ownDeliveredSeq,
+    'ownSeenSeq': ownSeenSeq,
+    'receiptProtocol': receiptProtocol,
   };
+}
+
+/// Boundaries are outgoing message creation times, not receipt event times.
+/// A gap means the latest page is authoritative but older cache cannot be
+/// certified by a timestamp boundary (for example, concurrent same-ms sends).
+class ReceiptWatermarks {
+  const ReceiptWatermarks({
+    this.deliveredThrough,
+    this.seenThrough,
+    this.hasGaps = false,
+  });
+  factory ReceiptWatermarks.fromJson(Map<String, dynamic> json) =>
+      ReceiptWatermarks(
+        deliveredThrough: parseTime(json['deliveredThrough']),
+        seenThrough: parseTime(json['seenThrough']),
+        hasGaps: json['hasGaps'] == true,
+      );
+  final DateTime? deliveredThrough, seenThrough;
+  final bool hasGaps;
+}
+
+/// Durable pending account receipt work. Null targets have no outstanding work.
+class ReceiptTarget {
+  const ReceiptTarget({
+    required this.roomId,
+    this.deliveredThroughSeq,
+    this.seenThroughSeq,
+    this.deliveredThroughTimestamp,
+    this.seenThroughTimestamp,
+    this.receiptProtocol = 'legacy',
+  });
+  final String roomId;
+  final int? deliveredThroughSeq, seenThroughSeq;
+  final DateTime? deliveredThroughTimestamp, seenThroughTimestamp;
+  final String receiptProtocol;
+}
+
+ChatMessage applySequenceReceipts(
+  ChatMessage message,
+  String myUserId,
+  int deliveredSeq,
+  int seenSeq,
+) {
+  final seq = message.messageSeq;
+  if (message.senderId != myUserId || message.status != 'sent' || seq == null) {
+    return message;
+  }
+  return message.copyWith(
+    deliveredByCursor:
+        message.deliveredByCursor || seq <= deliveredSeq || seq <= seenSeq,
+    seenByCursor: message.seenByCursor || seq <= seenSeq,
+  );
 }
 
 String encodeJson(Object? object) => jsonEncode(object);
@@ -241,19 +402,54 @@ String encodeJson(Object? object) => jsonEncode(object);
 /// the latest SQLite window. New tail messages do not move the jump viewport.
 List<ChatMessage> reconcileJumpSlice(
   List<ChatMessage> messages,
-  Map<String, dynamic> payload,
-) {
+  Map<String, dynamic> payload, {
+  String? myUserId,
+}) {
   final raw = payload['updatedMessage'];
-  if (raw == null) return messages;
-  final updated = ChatMessage.fromJson(jsonMap(raw));
-  if (payload['eventType'] == 'message_deleted_me') {
-    return messages.where((message) => message.id != updated.id).toList();
-  }
-  return messages.map((message) {
-    if (message.id == updated.id) return updated;
-    if ((updated.isDeletedForAll || updated.isEdited) &&
-        message.replyTo?.messageId == updated.id) {
-      return message.copyWith(replyTo: ReplySnapshot.fromMessage(updated));
+  final updated = raw == null ? null : ChatMessage.fromJson(jsonMap(raw));
+  final quote = payload['quoteUpdate'] == null
+      ? updated != null && (updated.isDeletedForAll || updated.isEdited)
+            ? ReplySnapshot.fromMessage(updated)
+            : null
+      : ReplySnapshot.fromJson(jsonMap(payload['quoteUpdate']));
+  final visible =
+      updated != null && payload['eventType'] == 'message_deleted_me'
+      ? messages.where((message) => message.id != updated.id)
+      : messages;
+  return visible.map((message) {
+    if (myUserId != null) {
+      message = applySequenceReceipts(
+        message,
+        myUserId,
+        intValue(payload['peerDeliveredSeq']),
+        intValue(payload['peerSeenSeq']),
+      );
+      final event = payload['eventType'];
+      final boundary = parseTime(payload['actionTimestamp']);
+      if (payload['sequenceReceipt'] != true &&
+          boundary != null &&
+          (event == 'room_delivered' || event == 'room_peer_seen') &&
+          message.senderId == myUserId &&
+          message.status == 'sent' &&
+          message.messageSeq == null &&
+          !message.createdAt.isAfter(boundary)) {
+        message = message.copyWith(
+          deliveredByCursor: true,
+          seenByCursor: message.seenByCursor || event == 'room_peer_seen',
+        );
+      }
+    }
+    if (updated != null && message.id == updated.id) {
+      return updated.copyWith(
+        deliveredAt: updated.deliveredAt ?? message.deliveredAt,
+        seenAt: updated.seenAt ?? message.seenAt,
+        deliveredByCursor:
+            updated.deliveredByCursor || message.deliveredByCursor,
+        seenByCursor: updated.seenByCursor || message.seenByCursor,
+      );
+    }
+    if (quote != null && message.replyTo?.messageId == quote.messageId) {
+      return message.copyWith(replyTo: quote);
     }
     return message;
   }).toList();

@@ -52,8 +52,66 @@ class $SyncMetadataTable extends SyncMetadata
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _roomPageCursorJsonMeta =
+      const VerificationMeta('roomPageCursorJson');
   @override
-  List<GeneratedColumn> get $columns => [id, userId, localPts, localEpoch];
+  late final GeneratedColumn<String> roomPageCursorJson =
+      GeneratedColumn<String>(
+        'room_page_cursor_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _roomPageEpochMeta = const VerificationMeta(
+    'roomPageEpoch',
+  );
+  @override
+  late final GeneratedColumn<String> roomPageEpoch = GeneratedColumn<String>(
+    'room_page_epoch',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _roomPageKnownMeta = const VerificationMeta(
+    'roomPageKnown',
+  );
+  @override
+  late final GeneratedColumn<bool> roomPageKnown = GeneratedColumn<bool>(
+    'room_page_known',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("room_page_known" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _lastOutboundOrderMeta = const VerificationMeta(
+    'lastOutboundOrder',
+  );
+  @override
+  late final GeneratedColumn<int> lastOutboundOrder = GeneratedColumn<int>(
+    'last_outbound_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    userId,
+    localPts,
+    localEpoch,
+    roomPageCursorJson,
+    roomPageEpoch,
+    roomPageKnown,
+    lastOutboundOrder,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -89,6 +147,42 @@ class $SyncMetadataTable extends SyncMetadata
         localEpoch.isAcceptableOrUnknown(data['local_epoch']!, _localEpochMeta),
       );
     }
+    if (data.containsKey('room_page_cursor_json')) {
+      context.handle(
+        _roomPageCursorJsonMeta,
+        roomPageCursorJson.isAcceptableOrUnknown(
+          data['room_page_cursor_json']!,
+          _roomPageCursorJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('room_page_epoch')) {
+      context.handle(
+        _roomPageEpochMeta,
+        roomPageEpoch.isAcceptableOrUnknown(
+          data['room_page_epoch']!,
+          _roomPageEpochMeta,
+        ),
+      );
+    }
+    if (data.containsKey('room_page_known')) {
+      context.handle(
+        _roomPageKnownMeta,
+        roomPageKnown.isAcceptableOrUnknown(
+          data['room_page_known']!,
+          _roomPageKnownMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_outbound_order')) {
+      context.handle(
+        _lastOutboundOrderMeta,
+        lastOutboundOrder.isAcceptableOrUnknown(
+          data['last_outbound_order']!,
+          _lastOutboundOrderMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -114,6 +208,22 @@ class $SyncMetadataTable extends SyncMetadata
         DriftSqlType.string,
         data['${effectivePrefix}local_epoch'],
       )!,
+      roomPageCursorJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}room_page_cursor_json'],
+      ),
+      roomPageEpoch: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}room_page_epoch'],
+      ),
+      roomPageKnown: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}room_page_known'],
+      )!,
+      lastOutboundOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_outbound_order'],
+      )!,
     );
   }
 
@@ -128,11 +238,19 @@ class SyncMetadataRow extends DataClass implements Insertable<SyncMetadataRow> {
   final String userId;
   final int localPts;
   final String localEpoch;
+  final String? roomPageCursorJson;
+  final String? roomPageEpoch;
+  final bool roomPageKnown;
+  final int lastOutboundOrder;
   const SyncMetadataRow({
     required this.id,
     required this.userId,
     required this.localPts,
     required this.localEpoch,
+    this.roomPageCursorJson,
+    this.roomPageEpoch,
+    required this.roomPageKnown,
+    required this.lastOutboundOrder,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -141,6 +259,14 @@ class SyncMetadataRow extends DataClass implements Insertable<SyncMetadataRow> {
     map['user_id'] = Variable<String>(userId);
     map['local_pts'] = Variable<int>(localPts);
     map['local_epoch'] = Variable<String>(localEpoch);
+    if (!nullToAbsent || roomPageCursorJson != null) {
+      map['room_page_cursor_json'] = Variable<String>(roomPageCursorJson);
+    }
+    if (!nullToAbsent || roomPageEpoch != null) {
+      map['room_page_epoch'] = Variable<String>(roomPageEpoch);
+    }
+    map['room_page_known'] = Variable<bool>(roomPageKnown);
+    map['last_outbound_order'] = Variable<int>(lastOutboundOrder);
     return map;
   }
 
@@ -150,6 +276,14 @@ class SyncMetadataRow extends DataClass implements Insertable<SyncMetadataRow> {
       userId: Value(userId),
       localPts: Value(localPts),
       localEpoch: Value(localEpoch),
+      roomPageCursorJson: roomPageCursorJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(roomPageCursorJson),
+      roomPageEpoch: roomPageEpoch == null && nullToAbsent
+          ? const Value.absent()
+          : Value(roomPageEpoch),
+      roomPageKnown: Value(roomPageKnown),
+      lastOutboundOrder: Value(lastOutboundOrder),
     );
   }
 
@@ -163,6 +297,12 @@ class SyncMetadataRow extends DataClass implements Insertable<SyncMetadataRow> {
       userId: serializer.fromJson<String>(json['userId']),
       localPts: serializer.fromJson<int>(json['localPts']),
       localEpoch: serializer.fromJson<String>(json['localEpoch']),
+      roomPageCursorJson: serializer.fromJson<String?>(
+        json['roomPageCursorJson'],
+      ),
+      roomPageEpoch: serializer.fromJson<String?>(json['roomPageEpoch']),
+      roomPageKnown: serializer.fromJson<bool>(json['roomPageKnown']),
+      lastOutboundOrder: serializer.fromJson<int>(json['lastOutboundOrder']),
     );
   }
   @override
@@ -173,6 +313,10 @@ class SyncMetadataRow extends DataClass implements Insertable<SyncMetadataRow> {
       'userId': serializer.toJson<String>(userId),
       'localPts': serializer.toJson<int>(localPts),
       'localEpoch': serializer.toJson<String>(localEpoch),
+      'roomPageCursorJson': serializer.toJson<String?>(roomPageCursorJson),
+      'roomPageEpoch': serializer.toJson<String?>(roomPageEpoch),
+      'roomPageKnown': serializer.toJson<bool>(roomPageKnown),
+      'lastOutboundOrder': serializer.toJson<int>(lastOutboundOrder),
     };
   }
 
@@ -181,11 +325,23 @@ class SyncMetadataRow extends DataClass implements Insertable<SyncMetadataRow> {
     String? userId,
     int? localPts,
     String? localEpoch,
+    Value<String?> roomPageCursorJson = const Value.absent(),
+    Value<String?> roomPageEpoch = const Value.absent(),
+    bool? roomPageKnown,
+    int? lastOutboundOrder,
   }) => SyncMetadataRow(
     id: id ?? this.id,
     userId: userId ?? this.userId,
     localPts: localPts ?? this.localPts,
     localEpoch: localEpoch ?? this.localEpoch,
+    roomPageCursorJson: roomPageCursorJson.present
+        ? roomPageCursorJson.value
+        : this.roomPageCursorJson,
+    roomPageEpoch: roomPageEpoch.present
+        ? roomPageEpoch.value
+        : this.roomPageEpoch,
+    roomPageKnown: roomPageKnown ?? this.roomPageKnown,
+    lastOutboundOrder: lastOutboundOrder ?? this.lastOutboundOrder,
   );
   SyncMetadataRow copyWithCompanion(SyncMetadataCompanion data) {
     return SyncMetadataRow(
@@ -195,6 +351,18 @@ class SyncMetadataRow extends DataClass implements Insertable<SyncMetadataRow> {
       localEpoch: data.localEpoch.present
           ? data.localEpoch.value
           : this.localEpoch,
+      roomPageCursorJson: data.roomPageCursorJson.present
+          ? data.roomPageCursorJson.value
+          : this.roomPageCursorJson,
+      roomPageEpoch: data.roomPageEpoch.present
+          ? data.roomPageEpoch.value
+          : this.roomPageEpoch,
+      roomPageKnown: data.roomPageKnown.present
+          ? data.roomPageKnown.value
+          : this.roomPageKnown,
+      lastOutboundOrder: data.lastOutboundOrder.present
+          ? data.lastOutboundOrder.value
+          : this.lastOutboundOrder,
     );
   }
 
@@ -204,13 +372,26 @@ class SyncMetadataRow extends DataClass implements Insertable<SyncMetadataRow> {
           ..write('id: $id, ')
           ..write('userId: $userId, ')
           ..write('localPts: $localPts, ')
-          ..write('localEpoch: $localEpoch')
+          ..write('localEpoch: $localEpoch, ')
+          ..write('roomPageCursorJson: $roomPageCursorJson, ')
+          ..write('roomPageEpoch: $roomPageEpoch, ')
+          ..write('roomPageKnown: $roomPageKnown, ')
+          ..write('lastOutboundOrder: $lastOutboundOrder')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, userId, localPts, localEpoch);
+  int get hashCode => Object.hash(
+    id,
+    userId,
+    localPts,
+    localEpoch,
+    roomPageCursorJson,
+    roomPageEpoch,
+    roomPageKnown,
+    lastOutboundOrder,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -218,7 +399,11 @@ class SyncMetadataRow extends DataClass implements Insertable<SyncMetadataRow> {
           other.id == this.id &&
           other.userId == this.userId &&
           other.localPts == this.localPts &&
-          other.localEpoch == this.localEpoch);
+          other.localEpoch == this.localEpoch &&
+          other.roomPageCursorJson == this.roomPageCursorJson &&
+          other.roomPageEpoch == this.roomPageEpoch &&
+          other.roomPageKnown == this.roomPageKnown &&
+          other.lastOutboundOrder == this.lastOutboundOrder);
 }
 
 class SyncMetadataCompanion extends UpdateCompanion<SyncMetadataRow> {
@@ -226,29 +411,50 @@ class SyncMetadataCompanion extends UpdateCompanion<SyncMetadataRow> {
   final Value<String> userId;
   final Value<int> localPts;
   final Value<String> localEpoch;
+  final Value<String?> roomPageCursorJson;
+  final Value<String?> roomPageEpoch;
+  final Value<bool> roomPageKnown;
+  final Value<int> lastOutboundOrder;
   const SyncMetadataCompanion({
     this.id = const Value.absent(),
     this.userId = const Value.absent(),
     this.localPts = const Value.absent(),
     this.localEpoch = const Value.absent(),
+    this.roomPageCursorJson = const Value.absent(),
+    this.roomPageEpoch = const Value.absent(),
+    this.roomPageKnown = const Value.absent(),
+    this.lastOutboundOrder = const Value.absent(),
   });
   SyncMetadataCompanion.insert({
     this.id = const Value.absent(),
     required String userId,
     this.localPts = const Value.absent(),
     this.localEpoch = const Value.absent(),
+    this.roomPageCursorJson = const Value.absent(),
+    this.roomPageEpoch = const Value.absent(),
+    this.roomPageKnown = const Value.absent(),
+    this.lastOutboundOrder = const Value.absent(),
   }) : userId = Value(userId);
   static Insertable<SyncMetadataRow> custom({
     Expression<int>? id,
     Expression<String>? userId,
     Expression<int>? localPts,
     Expression<String>? localEpoch,
+    Expression<String>? roomPageCursorJson,
+    Expression<String>? roomPageEpoch,
+    Expression<bool>? roomPageKnown,
+    Expression<int>? lastOutboundOrder,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (userId != null) 'user_id': userId,
       if (localPts != null) 'local_pts': localPts,
       if (localEpoch != null) 'local_epoch': localEpoch,
+      if (roomPageCursorJson != null)
+        'room_page_cursor_json': roomPageCursorJson,
+      if (roomPageEpoch != null) 'room_page_epoch': roomPageEpoch,
+      if (roomPageKnown != null) 'room_page_known': roomPageKnown,
+      if (lastOutboundOrder != null) 'last_outbound_order': lastOutboundOrder,
     });
   }
 
@@ -257,12 +463,20 @@ class SyncMetadataCompanion extends UpdateCompanion<SyncMetadataRow> {
     Value<String>? userId,
     Value<int>? localPts,
     Value<String>? localEpoch,
+    Value<String?>? roomPageCursorJson,
+    Value<String?>? roomPageEpoch,
+    Value<bool>? roomPageKnown,
+    Value<int>? lastOutboundOrder,
   }) {
     return SyncMetadataCompanion(
       id: id ?? this.id,
       userId: userId ?? this.userId,
       localPts: localPts ?? this.localPts,
       localEpoch: localEpoch ?? this.localEpoch,
+      roomPageCursorJson: roomPageCursorJson ?? this.roomPageCursorJson,
+      roomPageEpoch: roomPageEpoch ?? this.roomPageEpoch,
+      roomPageKnown: roomPageKnown ?? this.roomPageKnown,
+      lastOutboundOrder: lastOutboundOrder ?? this.lastOutboundOrder,
     );
   }
 
@@ -281,6 +495,18 @@ class SyncMetadataCompanion extends UpdateCompanion<SyncMetadataRow> {
     if (localEpoch.present) {
       map['local_epoch'] = Variable<String>(localEpoch.value);
     }
+    if (roomPageCursorJson.present) {
+      map['room_page_cursor_json'] = Variable<String>(roomPageCursorJson.value);
+    }
+    if (roomPageEpoch.present) {
+      map['room_page_epoch'] = Variable<String>(roomPageEpoch.value);
+    }
+    if (roomPageKnown.present) {
+      map['room_page_known'] = Variable<bool>(roomPageKnown.value);
+    }
+    if (lastOutboundOrder.present) {
+      map['last_outbound_order'] = Variable<int>(lastOutboundOrder.value);
+    }
     return map;
   }
 
@@ -290,7 +516,11 @@ class SyncMetadataCompanion extends UpdateCompanion<SyncMetadataRow> {
           ..write('id: $id, ')
           ..write('userId: $userId, ')
           ..write('localPts: $localPts, ')
-          ..write('localEpoch: $localEpoch')
+          ..write('localEpoch: $localEpoch, ')
+          ..write('roomPageCursorJson: $roomPageCursorJson, ')
+          ..write('roomPageEpoch: $roomPageEpoch, ')
+          ..write('roomPageKnown: $roomPageKnown, ')
+          ..write('lastOutboundOrder: $lastOutboundOrder')
           ..write(')'))
         .toString();
   }
@@ -478,6 +708,112 @@ class $LocalRoomsTable extends LocalRooms
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _contentPtsMeta = const VerificationMeta(
+    'contentPts',
+  );
+  @override
+  late final GeneratedColumn<int> contentPts = GeneratedColumn<int>(
+    'content_pts',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _receiptProtocolMeta = const VerificationMeta(
+    'receiptProtocol',
+  );
+  @override
+  late final GeneratedColumn<String> receiptProtocol = GeneratedColumn<String>(
+    'receipt_protocol',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('legacy'),
+  );
+  static const VerificationMeta _peerDeliveredSeqMeta = const VerificationMeta(
+    'peerDeliveredSeq',
+  );
+  @override
+  late final GeneratedColumn<int> peerDeliveredSeq = GeneratedColumn<int>(
+    'peer_delivered_seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _peerSeenSeqMeta = const VerificationMeta(
+    'peerSeenSeq',
+  );
+  @override
+  late final GeneratedColumn<int> peerSeenSeq = GeneratedColumn<int>(
+    'peer_seen_seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _ownDeliveredSeqMeta = const VerificationMeta(
+    'ownDeliveredSeq',
+  );
+  @override
+  late final GeneratedColumn<int> ownDeliveredSeq = GeneratedColumn<int>(
+    'own_delivered_seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _ownSeenSeqMeta = const VerificationMeta(
+    'ownSeenSeq',
+  );
+  @override
+  late final GeneratedColumn<int> ownSeenSeq = GeneratedColumn<int>(
+    'own_seen_seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _receivedThroughSeqMeta =
+      const VerificationMeta('receivedThroughSeq');
+  @override
+  late final GeneratedColumn<int> receivedThroughSeq = GeneratedColumn<int>(
+    'received_through_seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _verifiedHeadSeqMeta = const VerificationMeta(
+    'verifiedHeadSeq',
+  );
+  @override
+  late final GeneratedColumn<int> verifiedHeadSeq = GeneratedColumn<int>(
+    'verified_head_seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _receivedRangesJsonMeta =
+      const VerificationMeta('receivedRangesJson');
+  @override
+  late final GeneratedColumn<String> receivedRangesJson =
+      GeneratedColumn<String>(
+        'received_ranges_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
   @override
   List<GeneratedColumn> get $columns => [
     roomId,
@@ -496,6 +832,15 @@ class $LocalRoomsTable extends LocalRooms
     lastHistoryEditPts,
     messagesSyncedPts,
     lastMessageJson,
+    contentPts,
+    receiptProtocol,
+    peerDeliveredSeq,
+    peerSeenSeq,
+    ownDeliveredSeq,
+    ownSeenSeq,
+    receivedThroughSeq,
+    verifiedHeadSeq,
+    receivedRangesJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -641,6 +986,84 @@ class $LocalRoomsTable extends LocalRooms
         ),
       );
     }
+    if (data.containsKey('content_pts')) {
+      context.handle(
+        _contentPtsMeta,
+        contentPts.isAcceptableOrUnknown(data['content_pts']!, _contentPtsMeta),
+      );
+    }
+    if (data.containsKey('receipt_protocol')) {
+      context.handle(
+        _receiptProtocolMeta,
+        receiptProtocol.isAcceptableOrUnknown(
+          data['receipt_protocol']!,
+          _receiptProtocolMeta,
+        ),
+      );
+    }
+    if (data.containsKey('peer_delivered_seq')) {
+      context.handle(
+        _peerDeliveredSeqMeta,
+        peerDeliveredSeq.isAcceptableOrUnknown(
+          data['peer_delivered_seq']!,
+          _peerDeliveredSeqMeta,
+        ),
+      );
+    }
+    if (data.containsKey('peer_seen_seq')) {
+      context.handle(
+        _peerSeenSeqMeta,
+        peerSeenSeq.isAcceptableOrUnknown(
+          data['peer_seen_seq']!,
+          _peerSeenSeqMeta,
+        ),
+      );
+    }
+    if (data.containsKey('own_delivered_seq')) {
+      context.handle(
+        _ownDeliveredSeqMeta,
+        ownDeliveredSeq.isAcceptableOrUnknown(
+          data['own_delivered_seq']!,
+          _ownDeliveredSeqMeta,
+        ),
+      );
+    }
+    if (data.containsKey('own_seen_seq')) {
+      context.handle(
+        _ownSeenSeqMeta,
+        ownSeenSeq.isAcceptableOrUnknown(
+          data['own_seen_seq']!,
+          _ownSeenSeqMeta,
+        ),
+      );
+    }
+    if (data.containsKey('received_through_seq')) {
+      context.handle(
+        _receivedThroughSeqMeta,
+        receivedThroughSeq.isAcceptableOrUnknown(
+          data['received_through_seq']!,
+          _receivedThroughSeqMeta,
+        ),
+      );
+    }
+    if (data.containsKey('verified_head_seq')) {
+      context.handle(
+        _verifiedHeadSeqMeta,
+        verifiedHeadSeq.isAcceptableOrUnknown(
+          data['verified_head_seq']!,
+          _verifiedHeadSeqMeta,
+        ),
+      );
+    }
+    if (data.containsKey('received_ranges_json')) {
+      context.handle(
+        _receivedRangesJsonMeta,
+        receivedRangesJson.isAcceptableOrUnknown(
+          data['received_ranges_json']!,
+          _receivedRangesJsonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -714,6 +1137,42 @@ class $LocalRoomsTable extends LocalRooms
         DriftSqlType.string,
         data['${effectivePrefix}last_message_json'],
       ),
+      contentPts: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}content_pts'],
+      ),
+      receiptProtocol: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}receipt_protocol'],
+      )!,
+      peerDeliveredSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}peer_delivered_seq'],
+      )!,
+      peerSeenSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}peer_seen_seq'],
+      )!,
+      ownDeliveredSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}own_delivered_seq'],
+      )!,
+      ownSeenSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}own_seen_seq'],
+      )!,
+      receivedThroughSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}received_through_seq'],
+      )!,
+      verifiedHeadSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}verified_head_seq'],
+      )!,
+      receivedRangesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}received_ranges_json'],
+      )!,
     );
   }
 
@@ -740,6 +1199,15 @@ class LocalRoomRow extends DataClass implements Insertable<LocalRoomRow> {
   final int lastHistoryEditPts;
   final int messagesSyncedPts;
   final String? lastMessageJson;
+  final int? contentPts;
+  final String receiptProtocol;
+  final int peerDeliveredSeq;
+  final int peerSeenSeq;
+  final int ownDeliveredSeq;
+  final int ownSeenSeq;
+  final int receivedThroughSeq;
+  final int verifiedHeadSeq;
+  final String receivedRangesJson;
   const LocalRoomRow({
     required this.roomId,
     required this.roomType,
@@ -757,6 +1225,15 @@ class LocalRoomRow extends DataClass implements Insertable<LocalRoomRow> {
     required this.lastHistoryEditPts,
     required this.messagesSyncedPts,
     this.lastMessageJson,
+    this.contentPts,
+    required this.receiptProtocol,
+    required this.peerDeliveredSeq,
+    required this.peerSeenSeq,
+    required this.ownDeliveredSeq,
+    required this.ownSeenSeq,
+    required this.receivedThroughSeq,
+    required this.verifiedHeadSeq,
+    required this.receivedRangesJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -789,6 +1266,17 @@ class LocalRoomRow extends DataClass implements Insertable<LocalRoomRow> {
     if (!nullToAbsent || lastMessageJson != null) {
       map['last_message_json'] = Variable<String>(lastMessageJson);
     }
+    if (!nullToAbsent || contentPts != null) {
+      map['content_pts'] = Variable<int>(contentPts);
+    }
+    map['receipt_protocol'] = Variable<String>(receiptProtocol);
+    map['peer_delivered_seq'] = Variable<int>(peerDeliveredSeq);
+    map['peer_seen_seq'] = Variable<int>(peerSeenSeq);
+    map['own_delivered_seq'] = Variable<int>(ownDeliveredSeq);
+    map['own_seen_seq'] = Variable<int>(ownSeenSeq);
+    map['received_through_seq'] = Variable<int>(receivedThroughSeq);
+    map['verified_head_seq'] = Variable<int>(verifiedHeadSeq);
+    map['received_ranges_json'] = Variable<String>(receivedRangesJson);
     return map;
   }
 
@@ -822,6 +1310,17 @@ class LocalRoomRow extends DataClass implements Insertable<LocalRoomRow> {
       lastMessageJson: lastMessageJson == null && nullToAbsent
           ? const Value.absent()
           : Value(lastMessageJson),
+      contentPts: contentPts == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contentPts),
+      receiptProtocol: Value(receiptProtocol),
+      peerDeliveredSeq: Value(peerDeliveredSeq),
+      peerSeenSeq: Value(peerSeenSeq),
+      ownDeliveredSeq: Value(ownDeliveredSeq),
+      ownSeenSeq: Value(ownSeenSeq),
+      receivedThroughSeq: Value(receivedThroughSeq),
+      verifiedHeadSeq: Value(verifiedHeadSeq),
+      receivedRangesJson: Value(receivedRangesJson),
     );
   }
 
@@ -847,6 +1346,17 @@ class LocalRoomRow extends DataClass implements Insertable<LocalRoomRow> {
       lastHistoryEditPts: serializer.fromJson<int>(json['lastHistoryEditPts']),
       messagesSyncedPts: serializer.fromJson<int>(json['messagesSyncedPts']),
       lastMessageJson: serializer.fromJson<String?>(json['lastMessageJson']),
+      contentPts: serializer.fromJson<int?>(json['contentPts']),
+      receiptProtocol: serializer.fromJson<String>(json['receiptProtocol']),
+      peerDeliveredSeq: serializer.fromJson<int>(json['peerDeliveredSeq']),
+      peerSeenSeq: serializer.fromJson<int>(json['peerSeenSeq']),
+      ownDeliveredSeq: serializer.fromJson<int>(json['ownDeliveredSeq']),
+      ownSeenSeq: serializer.fromJson<int>(json['ownSeenSeq']),
+      receivedThroughSeq: serializer.fromJson<int>(json['receivedThroughSeq']),
+      verifiedHeadSeq: serializer.fromJson<int>(json['verifiedHeadSeq']),
+      receivedRangesJson: serializer.fromJson<String>(
+        json['receivedRangesJson'],
+      ),
     );
   }
   @override
@@ -869,6 +1379,15 @@ class LocalRoomRow extends DataClass implements Insertable<LocalRoomRow> {
       'lastHistoryEditPts': serializer.toJson<int>(lastHistoryEditPts),
       'messagesSyncedPts': serializer.toJson<int>(messagesSyncedPts),
       'lastMessageJson': serializer.toJson<String?>(lastMessageJson),
+      'contentPts': serializer.toJson<int?>(contentPts),
+      'receiptProtocol': serializer.toJson<String>(receiptProtocol),
+      'peerDeliveredSeq': serializer.toJson<int>(peerDeliveredSeq),
+      'peerSeenSeq': serializer.toJson<int>(peerSeenSeq),
+      'ownDeliveredSeq': serializer.toJson<int>(ownDeliveredSeq),
+      'ownSeenSeq': serializer.toJson<int>(ownSeenSeq),
+      'receivedThroughSeq': serializer.toJson<int>(receivedThroughSeq),
+      'verifiedHeadSeq': serializer.toJson<int>(verifiedHeadSeq),
+      'receivedRangesJson': serializer.toJson<String>(receivedRangesJson),
     };
   }
 
@@ -889,6 +1408,15 @@ class LocalRoomRow extends DataClass implements Insertable<LocalRoomRow> {
     int? lastHistoryEditPts,
     int? messagesSyncedPts,
     Value<String?> lastMessageJson = const Value.absent(),
+    Value<int?> contentPts = const Value.absent(),
+    String? receiptProtocol,
+    int? peerDeliveredSeq,
+    int? peerSeenSeq,
+    int? ownDeliveredSeq,
+    int? ownSeenSeq,
+    int? receivedThroughSeq,
+    int? verifiedHeadSeq,
+    String? receivedRangesJson,
   }) => LocalRoomRow(
     roomId: roomId ?? this.roomId,
     roomType: roomType ?? this.roomType,
@@ -910,6 +1438,15 @@ class LocalRoomRow extends DataClass implements Insertable<LocalRoomRow> {
     lastMessageJson: lastMessageJson.present
         ? lastMessageJson.value
         : this.lastMessageJson,
+    contentPts: contentPts.present ? contentPts.value : this.contentPts,
+    receiptProtocol: receiptProtocol ?? this.receiptProtocol,
+    peerDeliveredSeq: peerDeliveredSeq ?? this.peerDeliveredSeq,
+    peerSeenSeq: peerSeenSeq ?? this.peerSeenSeq,
+    ownDeliveredSeq: ownDeliveredSeq ?? this.ownDeliveredSeq,
+    ownSeenSeq: ownSeenSeq ?? this.ownSeenSeq,
+    receivedThroughSeq: receivedThroughSeq ?? this.receivedThroughSeq,
+    verifiedHeadSeq: verifiedHeadSeq ?? this.verifiedHeadSeq,
+    receivedRangesJson: receivedRangesJson ?? this.receivedRangesJson,
   );
   LocalRoomRow copyWithCompanion(LocalRoomsCompanion data) {
     return LocalRoomRow(
@@ -945,6 +1482,33 @@ class LocalRoomRow extends DataClass implements Insertable<LocalRoomRow> {
       lastMessageJson: data.lastMessageJson.present
           ? data.lastMessageJson.value
           : this.lastMessageJson,
+      contentPts: data.contentPts.present
+          ? data.contentPts.value
+          : this.contentPts,
+      receiptProtocol: data.receiptProtocol.present
+          ? data.receiptProtocol.value
+          : this.receiptProtocol,
+      peerDeliveredSeq: data.peerDeliveredSeq.present
+          ? data.peerDeliveredSeq.value
+          : this.peerDeliveredSeq,
+      peerSeenSeq: data.peerSeenSeq.present
+          ? data.peerSeenSeq.value
+          : this.peerSeenSeq,
+      ownDeliveredSeq: data.ownDeliveredSeq.present
+          ? data.ownDeliveredSeq.value
+          : this.ownDeliveredSeq,
+      ownSeenSeq: data.ownSeenSeq.present
+          ? data.ownSeenSeq.value
+          : this.ownSeenSeq,
+      receivedThroughSeq: data.receivedThroughSeq.present
+          ? data.receivedThroughSeq.value
+          : this.receivedThroughSeq,
+      verifiedHeadSeq: data.verifiedHeadSeq.present
+          ? data.verifiedHeadSeq.value
+          : this.verifiedHeadSeq,
+      receivedRangesJson: data.receivedRangesJson.present
+          ? data.receivedRangesJson.value
+          : this.receivedRangesJson,
     );
   }
 
@@ -966,13 +1530,22 @@ class LocalRoomRow extends DataClass implements Insertable<LocalRoomRow> {
           ..write('msgPts: $msgPts, ')
           ..write('lastHistoryEditPts: $lastHistoryEditPts, ')
           ..write('messagesSyncedPts: $messagesSyncedPts, ')
-          ..write('lastMessageJson: $lastMessageJson')
+          ..write('lastMessageJson: $lastMessageJson, ')
+          ..write('contentPts: $contentPts, ')
+          ..write('receiptProtocol: $receiptProtocol, ')
+          ..write('peerDeliveredSeq: $peerDeliveredSeq, ')
+          ..write('peerSeenSeq: $peerSeenSeq, ')
+          ..write('ownDeliveredSeq: $ownDeliveredSeq, ')
+          ..write('ownSeenSeq: $ownSeenSeq, ')
+          ..write('receivedThroughSeq: $receivedThroughSeq, ')
+          ..write('verifiedHeadSeq: $verifiedHeadSeq, ')
+          ..write('receivedRangesJson: $receivedRangesJson')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     roomId,
     roomType,
     peerUserId,
@@ -989,7 +1562,16 @@ class LocalRoomRow extends DataClass implements Insertable<LocalRoomRow> {
     lastHistoryEditPts,
     messagesSyncedPts,
     lastMessageJson,
-  );
+    contentPts,
+    receiptProtocol,
+    peerDeliveredSeq,
+    peerSeenSeq,
+    ownDeliveredSeq,
+    ownSeenSeq,
+    receivedThroughSeq,
+    verifiedHeadSeq,
+    receivedRangesJson,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1009,7 +1591,16 @@ class LocalRoomRow extends DataClass implements Insertable<LocalRoomRow> {
           other.msgPts == this.msgPts &&
           other.lastHistoryEditPts == this.lastHistoryEditPts &&
           other.messagesSyncedPts == this.messagesSyncedPts &&
-          other.lastMessageJson == this.lastMessageJson);
+          other.lastMessageJson == this.lastMessageJson &&
+          other.contentPts == this.contentPts &&
+          other.receiptProtocol == this.receiptProtocol &&
+          other.peerDeliveredSeq == this.peerDeliveredSeq &&
+          other.peerSeenSeq == this.peerSeenSeq &&
+          other.ownDeliveredSeq == this.ownDeliveredSeq &&
+          other.ownSeenSeq == this.ownSeenSeq &&
+          other.receivedThroughSeq == this.receivedThroughSeq &&
+          other.verifiedHeadSeq == this.verifiedHeadSeq &&
+          other.receivedRangesJson == this.receivedRangesJson);
 }
 
 class LocalRoomsCompanion extends UpdateCompanion<LocalRoomRow> {
@@ -1029,6 +1620,15 @@ class LocalRoomsCompanion extends UpdateCompanion<LocalRoomRow> {
   final Value<int> lastHistoryEditPts;
   final Value<int> messagesSyncedPts;
   final Value<String?> lastMessageJson;
+  final Value<int?> contentPts;
+  final Value<String> receiptProtocol;
+  final Value<int> peerDeliveredSeq;
+  final Value<int> peerSeenSeq;
+  final Value<int> ownDeliveredSeq;
+  final Value<int> ownSeenSeq;
+  final Value<int> receivedThroughSeq;
+  final Value<int> verifiedHeadSeq;
+  final Value<String> receivedRangesJson;
   final Value<int> rowid;
   const LocalRoomsCompanion({
     this.roomId = const Value.absent(),
@@ -1047,6 +1647,15 @@ class LocalRoomsCompanion extends UpdateCompanion<LocalRoomRow> {
     this.lastHistoryEditPts = const Value.absent(),
     this.messagesSyncedPts = const Value.absent(),
     this.lastMessageJson = const Value.absent(),
+    this.contentPts = const Value.absent(),
+    this.receiptProtocol = const Value.absent(),
+    this.peerDeliveredSeq = const Value.absent(),
+    this.peerSeenSeq = const Value.absent(),
+    this.ownDeliveredSeq = const Value.absent(),
+    this.ownSeenSeq = const Value.absent(),
+    this.receivedThroughSeq = const Value.absent(),
+    this.verifiedHeadSeq = const Value.absent(),
+    this.receivedRangesJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   LocalRoomsCompanion.insert({
@@ -1066,6 +1675,15 @@ class LocalRoomsCompanion extends UpdateCompanion<LocalRoomRow> {
     this.lastHistoryEditPts = const Value.absent(),
     this.messagesSyncedPts = const Value.absent(),
     this.lastMessageJson = const Value.absent(),
+    this.contentPts = const Value.absent(),
+    this.receiptProtocol = const Value.absent(),
+    this.peerDeliveredSeq = const Value.absent(),
+    this.peerSeenSeq = const Value.absent(),
+    this.ownDeliveredSeq = const Value.absent(),
+    this.ownSeenSeq = const Value.absent(),
+    this.receivedThroughSeq = const Value.absent(),
+    this.verifiedHeadSeq = const Value.absent(),
+    this.receivedRangesJson = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : roomId = Value(roomId),
        roomType = Value(roomType),
@@ -1090,6 +1708,15 @@ class LocalRoomsCompanion extends UpdateCompanion<LocalRoomRow> {
     Expression<int>? lastHistoryEditPts,
     Expression<int>? messagesSyncedPts,
     Expression<String>? lastMessageJson,
+    Expression<int>? contentPts,
+    Expression<String>? receiptProtocol,
+    Expression<int>? peerDeliveredSeq,
+    Expression<int>? peerSeenSeq,
+    Expression<int>? ownDeliveredSeq,
+    Expression<int>? ownSeenSeq,
+    Expression<int>? receivedThroughSeq,
+    Expression<int>? verifiedHeadSeq,
+    Expression<String>? receivedRangesJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1110,6 +1737,17 @@ class LocalRoomsCompanion extends UpdateCompanion<LocalRoomRow> {
         'last_history_edit_pts': lastHistoryEditPts,
       if (messagesSyncedPts != null) 'messages_synced_pts': messagesSyncedPts,
       if (lastMessageJson != null) 'last_message_json': lastMessageJson,
+      if (contentPts != null) 'content_pts': contentPts,
+      if (receiptProtocol != null) 'receipt_protocol': receiptProtocol,
+      if (peerDeliveredSeq != null) 'peer_delivered_seq': peerDeliveredSeq,
+      if (peerSeenSeq != null) 'peer_seen_seq': peerSeenSeq,
+      if (ownDeliveredSeq != null) 'own_delivered_seq': ownDeliveredSeq,
+      if (ownSeenSeq != null) 'own_seen_seq': ownSeenSeq,
+      if (receivedThroughSeq != null)
+        'received_through_seq': receivedThroughSeq,
+      if (verifiedHeadSeq != null) 'verified_head_seq': verifiedHeadSeq,
+      if (receivedRangesJson != null)
+        'received_ranges_json': receivedRangesJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1131,6 +1769,15 @@ class LocalRoomsCompanion extends UpdateCompanion<LocalRoomRow> {
     Value<int>? lastHistoryEditPts,
     Value<int>? messagesSyncedPts,
     Value<String?>? lastMessageJson,
+    Value<int?>? contentPts,
+    Value<String>? receiptProtocol,
+    Value<int>? peerDeliveredSeq,
+    Value<int>? peerSeenSeq,
+    Value<int>? ownDeliveredSeq,
+    Value<int>? ownSeenSeq,
+    Value<int>? receivedThroughSeq,
+    Value<int>? verifiedHeadSeq,
+    Value<String>? receivedRangesJson,
     Value<int>? rowid,
   }) {
     return LocalRoomsCompanion(
@@ -1150,6 +1797,15 @@ class LocalRoomsCompanion extends UpdateCompanion<LocalRoomRow> {
       lastHistoryEditPts: lastHistoryEditPts ?? this.lastHistoryEditPts,
       messagesSyncedPts: messagesSyncedPts ?? this.messagesSyncedPts,
       lastMessageJson: lastMessageJson ?? this.lastMessageJson,
+      contentPts: contentPts ?? this.contentPts,
+      receiptProtocol: receiptProtocol ?? this.receiptProtocol,
+      peerDeliveredSeq: peerDeliveredSeq ?? this.peerDeliveredSeq,
+      peerSeenSeq: peerSeenSeq ?? this.peerSeenSeq,
+      ownDeliveredSeq: ownDeliveredSeq ?? this.ownDeliveredSeq,
+      ownSeenSeq: ownSeenSeq ?? this.ownSeenSeq,
+      receivedThroughSeq: receivedThroughSeq ?? this.receivedThroughSeq,
+      verifiedHeadSeq: verifiedHeadSeq ?? this.verifiedHeadSeq,
+      receivedRangesJson: receivedRangesJson ?? this.receivedRangesJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1205,6 +1861,33 @@ class LocalRoomsCompanion extends UpdateCompanion<LocalRoomRow> {
     if (lastMessageJson.present) {
       map['last_message_json'] = Variable<String>(lastMessageJson.value);
     }
+    if (contentPts.present) {
+      map['content_pts'] = Variable<int>(contentPts.value);
+    }
+    if (receiptProtocol.present) {
+      map['receipt_protocol'] = Variable<String>(receiptProtocol.value);
+    }
+    if (peerDeliveredSeq.present) {
+      map['peer_delivered_seq'] = Variable<int>(peerDeliveredSeq.value);
+    }
+    if (peerSeenSeq.present) {
+      map['peer_seen_seq'] = Variable<int>(peerSeenSeq.value);
+    }
+    if (ownDeliveredSeq.present) {
+      map['own_delivered_seq'] = Variable<int>(ownDeliveredSeq.value);
+    }
+    if (ownSeenSeq.present) {
+      map['own_seen_seq'] = Variable<int>(ownSeenSeq.value);
+    }
+    if (receivedThroughSeq.present) {
+      map['received_through_seq'] = Variable<int>(receivedThroughSeq.value);
+    }
+    if (verifiedHeadSeq.present) {
+      map['verified_head_seq'] = Variable<int>(verifiedHeadSeq.value);
+    }
+    if (receivedRangesJson.present) {
+      map['received_ranges_json'] = Variable<String>(receivedRangesJson.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1230,6 +1913,15 @@ class LocalRoomsCompanion extends UpdateCompanion<LocalRoomRow> {
           ..write('lastHistoryEditPts: $lastHistoryEditPts, ')
           ..write('messagesSyncedPts: $messagesSyncedPts, ')
           ..write('lastMessageJson: $lastMessageJson, ')
+          ..write('contentPts: $contentPts, ')
+          ..write('receiptProtocol: $receiptProtocol, ')
+          ..write('peerDeliveredSeq: $peerDeliveredSeq, ')
+          ..write('peerSeenSeq: $peerSeenSeq, ')
+          ..write('ownDeliveredSeq: $ownDeliveredSeq, ')
+          ..write('ownSeenSeq: $ownSeenSeq, ')
+          ..write('receivedThroughSeq: $receivedThroughSeq, ')
+          ..write('verifiedHeadSeq: $verifiedHeadSeq, ')
+          ..write('receivedRangesJson: $receivedRangesJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1261,7 +1953,6 @@ class $LocalMessagesTable extends LocalMessages
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
   static const VerificationMeta _roomIdMeta = const VerificationMeta('roomId');
   @override
@@ -1358,6 +2049,40 @@ class $LocalMessagesTable extends LocalMessages
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _replyTargetIdMeta = const VerificationMeta(
+    'replyTargetId',
+  );
+  @override
+  late final GeneratedColumn<String> replyTargetId = GeneratedColumn<String>(
+    'reply_target_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _uploadBytesMeta = const VerificationMeta(
+    'uploadBytes',
+  );
+  @override
+  late final GeneratedColumn<Uint8List> uploadBytes =
+      GeneratedColumn<Uint8List>(
+        'upload_bytes',
+        aliasedName,
+        true,
+        type: DriftSqlType.blob,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _uploadFilenameMeta = const VerificationMeta(
+    'uploadFilename',
+  );
+  @override
+  late final GeneratedColumn<String> uploadFilename = GeneratedColumn<String>(
+    'upload_filename',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
@@ -1428,6 +2153,133 @@ class $LocalMessagesTable extends LocalMessages
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _messageSeqMeta = const VerificationMeta(
+    'messageSeq',
+  );
+  @override
+  late final GeneratedColumn<int> messageSeq = GeneratedColumn<int>(
+    'message_seq',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _deliveredByCursorMeta = const VerificationMeta(
+    'deliveredByCursor',
+  );
+  @override
+  late final GeneratedColumn<bool> deliveredByCursor = GeneratedColumn<bool>(
+    'delivered_by_cursor',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("delivered_by_cursor" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _seenByCursorMeta = const VerificationMeta(
+    'seenByCursor',
+  );
+  @override
+  late final GeneratedColumn<bool> seenByCursor = GeneratedColumn<bool>(
+    'seen_by_cursor',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("seen_by_cursor" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _enqueueOrderMeta = const VerificationMeta(
+    'enqueueOrder',
+  );
+  @override
+  late final GeneratedColumn<int> enqueueOrder = GeneratedColumn<int>(
+    'enqueue_order',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _retryCountMeta = const VerificationMeta(
+    'retryCount',
+  );
+  @override
+  late final GeneratedColumn<int> retryCount = GeneratedColumn<int>(
+    'retry_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _nextAttemptAtMeta = const VerificationMeta(
+    'nextAttemptAt',
+  );
+  @override
+  late final GeneratedColumn<int> nextAttemptAt = GeneratedColumn<int>(
+    'next_attempt_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastErrorCodeMeta = const VerificationMeta(
+    'lastErrorCode',
+  );
+  @override
+  late final GeneratedColumn<String> lastErrorCode = GeneratedColumn<String>(
+    'last_error_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastErrorTextMeta = const VerificationMeta(
+    'lastErrorText',
+  );
+  @override
+  late final GeneratedColumn<String> lastErrorText = GeneratedColumn<String>(
+    'last_error_text',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _outcomeUnknownMeta = const VerificationMeta(
+    'outcomeUnknown',
+  );
+  @override
+  late final GeneratedColumn<bool> outcomeUnknown = GeneratedColumn<bool>(
+    'outcome_unknown',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("outcome_unknown" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _outboxPausedMeta = const VerificationMeta(
+    'outboxPaused',
+  );
+  @override
+  late final GeneratedColumn<bool> outboxPaused = GeneratedColumn<bool>(
+    'outbox_paused',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("outbox_paused" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1441,12 +2293,25 @@ class $LocalMessagesTable extends LocalMessages
     content,
     imageUrl,
     replyToJson,
+    replyTargetId,
+    uploadBytes,
+    uploadFilename,
     status,
     isEdited,
     isDeletedForAll,
     deliveredAt,
     seenAt,
     createdAt,
+    messageSeq,
+    deliveredByCursor,
+    seenByCursor,
+    enqueueOrder,
+    retryCount,
+    nextAttemptAt,
+    lastErrorCode,
+    lastErrorText,
+    outcomeUnknown,
+    outboxPaused,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1549,6 +2414,33 @@ class $LocalMessagesTable extends LocalMessages
         ),
       );
     }
+    if (data.containsKey('reply_target_id')) {
+      context.handle(
+        _replyTargetIdMeta,
+        replyTargetId.isAcceptableOrUnknown(
+          data['reply_target_id']!,
+          _replyTargetIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('upload_bytes')) {
+      context.handle(
+        _uploadBytesMeta,
+        uploadBytes.isAcceptableOrUnknown(
+          data['upload_bytes']!,
+          _uploadBytesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('upload_filename')) {
+      context.handle(
+        _uploadFilenameMeta,
+        uploadFilename.isAcceptableOrUnknown(
+          data['upload_filename']!,
+          _uploadFilenameMeta,
+        ),
+      );
+    }
     if (data.containsKey('status')) {
       context.handle(
         _statusMeta,
@@ -1595,11 +2487,99 @@ class $LocalMessagesTable extends LocalMessages
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('message_seq')) {
+      context.handle(
+        _messageSeqMeta,
+        messageSeq.isAcceptableOrUnknown(data['message_seq']!, _messageSeqMeta),
+      );
+    }
+    if (data.containsKey('delivered_by_cursor')) {
+      context.handle(
+        _deliveredByCursorMeta,
+        deliveredByCursor.isAcceptableOrUnknown(
+          data['delivered_by_cursor']!,
+          _deliveredByCursorMeta,
+        ),
+      );
+    }
+    if (data.containsKey('seen_by_cursor')) {
+      context.handle(
+        _seenByCursorMeta,
+        seenByCursor.isAcceptableOrUnknown(
+          data['seen_by_cursor']!,
+          _seenByCursorMeta,
+        ),
+      );
+    }
+    if (data.containsKey('enqueue_order')) {
+      context.handle(
+        _enqueueOrderMeta,
+        enqueueOrder.isAcceptableOrUnknown(
+          data['enqueue_order']!,
+          _enqueueOrderMeta,
+        ),
+      );
+    }
+    if (data.containsKey('retry_count')) {
+      context.handle(
+        _retryCountMeta,
+        retryCount.isAcceptableOrUnknown(data['retry_count']!, _retryCountMeta),
+      );
+    }
+    if (data.containsKey('next_attempt_at')) {
+      context.handle(
+        _nextAttemptAtMeta,
+        nextAttemptAt.isAcceptableOrUnknown(
+          data['next_attempt_at']!,
+          _nextAttemptAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_error_code')) {
+      context.handle(
+        _lastErrorCodeMeta,
+        lastErrorCode.isAcceptableOrUnknown(
+          data['last_error_code']!,
+          _lastErrorCodeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_error_text')) {
+      context.handle(
+        _lastErrorTextMeta,
+        lastErrorText.isAcceptableOrUnknown(
+          data['last_error_text']!,
+          _lastErrorTextMeta,
+        ),
+      );
+    }
+    if (data.containsKey('outcome_unknown')) {
+      context.handle(
+        _outcomeUnknownMeta,
+        outcomeUnknown.isAcceptableOrUnknown(
+          data['outcome_unknown']!,
+          _outcomeUnknownMeta,
+        ),
+      );
+    }
+    if (data.containsKey('outbox_paused')) {
+      context.handle(
+        _outboxPausedMeta,
+        outboxPaused.isAcceptableOrUnknown(
+          data['outbox_paused']!,
+          _outboxPausedMeta,
+        ),
+      );
+    }
     return context;
   }
 
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {senderId, idempotencyKey},
+  ];
   @override
   LocalMessageRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
@@ -1648,6 +2628,18 @@ class $LocalMessagesTable extends LocalMessages
         DriftSqlType.string,
         data['${effectivePrefix}reply_to_json'],
       ),
+      replyTargetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reply_target_id'],
+      ),
+      uploadBytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}upload_bytes'],
+      ),
+      uploadFilename: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}upload_filename'],
+      ),
       status: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}status'],
@@ -1672,6 +2664,46 @@ class $LocalMessagesTable extends LocalMessages
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
       )!,
+      messageSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}message_seq'],
+      ),
+      deliveredByCursor: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}delivered_by_cursor'],
+      )!,
+      seenByCursor: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}seen_by_cursor'],
+      )!,
+      enqueueOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}enqueue_order'],
+      ),
+      retryCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}retry_count'],
+      )!,
+      nextAttemptAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}next_attempt_at'],
+      ),
+      lastErrorCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error_code'],
+      ),
+      lastErrorText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error_text'],
+      ),
+      outcomeUnknown: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}outcome_unknown'],
+      )!,
+      outboxPaused: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}outbox_paused'],
+      )!,
     );
   }
 
@@ -1693,12 +2725,25 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
   final String content;
   final String? imageUrl;
   final String? replyToJson;
+  final String? replyTargetId;
+  final Uint8List? uploadBytes;
+  final String? uploadFilename;
   final String status;
   final bool isEdited;
   final bool isDeletedForAll;
   final int? deliveredAt;
   final int? seenAt;
   final int createdAt;
+  final int? messageSeq;
+  final bool deliveredByCursor;
+  final bool seenByCursor;
+  final int? enqueueOrder;
+  final int retryCount;
+  final int? nextAttemptAt;
+  final String? lastErrorCode;
+  final String? lastErrorText;
+  final bool outcomeUnknown;
+  final bool outboxPaused;
   const LocalMessageRow({
     required this.id,
     required this.idempotencyKey,
@@ -1711,12 +2756,25 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
     required this.content,
     this.imageUrl,
     this.replyToJson,
+    this.replyTargetId,
+    this.uploadBytes,
+    this.uploadFilename,
     required this.status,
     required this.isEdited,
     required this.isDeletedForAll,
     this.deliveredAt,
     this.seenAt,
     required this.createdAt,
+    this.messageSeq,
+    required this.deliveredByCursor,
+    required this.seenByCursor,
+    this.enqueueOrder,
+    required this.retryCount,
+    this.nextAttemptAt,
+    this.lastErrorCode,
+    this.lastErrorText,
+    required this.outcomeUnknown,
+    required this.outboxPaused,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1740,6 +2798,15 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
     if (!nullToAbsent || replyToJson != null) {
       map['reply_to_json'] = Variable<String>(replyToJson);
     }
+    if (!nullToAbsent || replyTargetId != null) {
+      map['reply_target_id'] = Variable<String>(replyTargetId);
+    }
+    if (!nullToAbsent || uploadBytes != null) {
+      map['upload_bytes'] = Variable<Uint8List>(uploadBytes);
+    }
+    if (!nullToAbsent || uploadFilename != null) {
+      map['upload_filename'] = Variable<String>(uploadFilename);
+    }
     map['status'] = Variable<String>(status);
     map['is_edited'] = Variable<bool>(isEdited);
     map['is_deleted_for_all'] = Variable<bool>(isDeletedForAll);
@@ -1750,6 +2817,26 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
       map['seen_at'] = Variable<int>(seenAt);
     }
     map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || messageSeq != null) {
+      map['message_seq'] = Variable<int>(messageSeq);
+    }
+    map['delivered_by_cursor'] = Variable<bool>(deliveredByCursor);
+    map['seen_by_cursor'] = Variable<bool>(seenByCursor);
+    if (!nullToAbsent || enqueueOrder != null) {
+      map['enqueue_order'] = Variable<int>(enqueueOrder);
+    }
+    map['retry_count'] = Variable<int>(retryCount);
+    if (!nullToAbsent || nextAttemptAt != null) {
+      map['next_attempt_at'] = Variable<int>(nextAttemptAt);
+    }
+    if (!nullToAbsent || lastErrorCode != null) {
+      map['last_error_code'] = Variable<String>(lastErrorCode);
+    }
+    if (!nullToAbsent || lastErrorText != null) {
+      map['last_error_text'] = Variable<String>(lastErrorText);
+    }
+    map['outcome_unknown'] = Variable<bool>(outcomeUnknown);
+    map['outbox_paused'] = Variable<bool>(outboxPaused);
     return map;
   }
 
@@ -1774,6 +2861,15 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
       replyToJson: replyToJson == null && nullToAbsent
           ? const Value.absent()
           : Value(replyToJson),
+      replyTargetId: replyTargetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replyTargetId),
+      uploadBytes: uploadBytes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(uploadBytes),
+      uploadFilename: uploadFilename == null && nullToAbsent
+          ? const Value.absent()
+          : Value(uploadFilename),
       status: Value(status),
       isEdited: Value(isEdited),
       isDeletedForAll: Value(isDeletedForAll),
@@ -1784,6 +2880,26 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
           ? const Value.absent()
           : Value(seenAt),
       createdAt: Value(createdAt),
+      messageSeq: messageSeq == null && nullToAbsent
+          ? const Value.absent()
+          : Value(messageSeq),
+      deliveredByCursor: Value(deliveredByCursor),
+      seenByCursor: Value(seenByCursor),
+      enqueueOrder: enqueueOrder == null && nullToAbsent
+          ? const Value.absent()
+          : Value(enqueueOrder),
+      retryCount: Value(retryCount),
+      nextAttemptAt: nextAttemptAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nextAttemptAt),
+      lastErrorCode: lastErrorCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastErrorCode),
+      lastErrorText: lastErrorText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastErrorText),
+      outcomeUnknown: Value(outcomeUnknown),
+      outboxPaused: Value(outboxPaused),
     );
   }
 
@@ -1804,12 +2920,25 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
       content: serializer.fromJson<String>(json['content']),
       imageUrl: serializer.fromJson<String?>(json['imageUrl']),
       replyToJson: serializer.fromJson<String?>(json['replyToJson']),
+      replyTargetId: serializer.fromJson<String?>(json['replyTargetId']),
+      uploadBytes: serializer.fromJson<Uint8List?>(json['uploadBytes']),
+      uploadFilename: serializer.fromJson<String?>(json['uploadFilename']),
       status: serializer.fromJson<String>(json['status']),
       isEdited: serializer.fromJson<bool>(json['isEdited']),
       isDeletedForAll: serializer.fromJson<bool>(json['isDeletedForAll']),
       deliveredAt: serializer.fromJson<int?>(json['deliveredAt']),
       seenAt: serializer.fromJson<int?>(json['seenAt']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
+      messageSeq: serializer.fromJson<int?>(json['messageSeq']),
+      deliveredByCursor: serializer.fromJson<bool>(json['deliveredByCursor']),
+      seenByCursor: serializer.fromJson<bool>(json['seenByCursor']),
+      enqueueOrder: serializer.fromJson<int?>(json['enqueueOrder']),
+      retryCount: serializer.fromJson<int>(json['retryCount']),
+      nextAttemptAt: serializer.fromJson<int?>(json['nextAttemptAt']),
+      lastErrorCode: serializer.fromJson<String?>(json['lastErrorCode']),
+      lastErrorText: serializer.fromJson<String?>(json['lastErrorText']),
+      outcomeUnknown: serializer.fromJson<bool>(json['outcomeUnknown']),
+      outboxPaused: serializer.fromJson<bool>(json['outboxPaused']),
     );
   }
   @override
@@ -1827,12 +2956,25 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
       'content': serializer.toJson<String>(content),
       'imageUrl': serializer.toJson<String?>(imageUrl),
       'replyToJson': serializer.toJson<String?>(replyToJson),
+      'replyTargetId': serializer.toJson<String?>(replyTargetId),
+      'uploadBytes': serializer.toJson<Uint8List?>(uploadBytes),
+      'uploadFilename': serializer.toJson<String?>(uploadFilename),
       'status': serializer.toJson<String>(status),
       'isEdited': serializer.toJson<bool>(isEdited),
       'isDeletedForAll': serializer.toJson<bool>(isDeletedForAll),
       'deliveredAt': serializer.toJson<int?>(deliveredAt),
       'seenAt': serializer.toJson<int?>(seenAt),
       'createdAt': serializer.toJson<int>(createdAt),
+      'messageSeq': serializer.toJson<int?>(messageSeq),
+      'deliveredByCursor': serializer.toJson<bool>(deliveredByCursor),
+      'seenByCursor': serializer.toJson<bool>(seenByCursor),
+      'enqueueOrder': serializer.toJson<int?>(enqueueOrder),
+      'retryCount': serializer.toJson<int>(retryCount),
+      'nextAttemptAt': serializer.toJson<int?>(nextAttemptAt),
+      'lastErrorCode': serializer.toJson<String?>(lastErrorCode),
+      'lastErrorText': serializer.toJson<String?>(lastErrorText),
+      'outcomeUnknown': serializer.toJson<bool>(outcomeUnknown),
+      'outboxPaused': serializer.toJson<bool>(outboxPaused),
     };
   }
 
@@ -1848,12 +2990,25 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
     String? content,
     Value<String?> imageUrl = const Value.absent(),
     Value<String?> replyToJson = const Value.absent(),
+    Value<String?> replyTargetId = const Value.absent(),
+    Value<Uint8List?> uploadBytes = const Value.absent(),
+    Value<String?> uploadFilename = const Value.absent(),
     String? status,
     bool? isEdited,
     bool? isDeletedForAll,
     Value<int?> deliveredAt = const Value.absent(),
     Value<int?> seenAt = const Value.absent(),
     int? createdAt,
+    Value<int?> messageSeq = const Value.absent(),
+    bool? deliveredByCursor,
+    bool? seenByCursor,
+    Value<int?> enqueueOrder = const Value.absent(),
+    int? retryCount,
+    Value<int?> nextAttemptAt = const Value.absent(),
+    Value<String?> lastErrorCode = const Value.absent(),
+    Value<String?> lastErrorText = const Value.absent(),
+    bool? outcomeUnknown,
+    bool? outboxPaused,
   }) => LocalMessageRow(
     id: id ?? this.id,
     idempotencyKey: idempotencyKey ?? this.idempotencyKey,
@@ -1868,12 +3023,35 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
     content: content ?? this.content,
     imageUrl: imageUrl.present ? imageUrl.value : this.imageUrl,
     replyToJson: replyToJson.present ? replyToJson.value : this.replyToJson,
+    replyTargetId: replyTargetId.present
+        ? replyTargetId.value
+        : this.replyTargetId,
+    uploadBytes: uploadBytes.present ? uploadBytes.value : this.uploadBytes,
+    uploadFilename: uploadFilename.present
+        ? uploadFilename.value
+        : this.uploadFilename,
     status: status ?? this.status,
     isEdited: isEdited ?? this.isEdited,
     isDeletedForAll: isDeletedForAll ?? this.isDeletedForAll,
     deliveredAt: deliveredAt.present ? deliveredAt.value : this.deliveredAt,
     seenAt: seenAt.present ? seenAt.value : this.seenAt,
     createdAt: createdAt ?? this.createdAt,
+    messageSeq: messageSeq.present ? messageSeq.value : this.messageSeq,
+    deliveredByCursor: deliveredByCursor ?? this.deliveredByCursor,
+    seenByCursor: seenByCursor ?? this.seenByCursor,
+    enqueueOrder: enqueueOrder.present ? enqueueOrder.value : this.enqueueOrder,
+    retryCount: retryCount ?? this.retryCount,
+    nextAttemptAt: nextAttemptAt.present
+        ? nextAttemptAt.value
+        : this.nextAttemptAt,
+    lastErrorCode: lastErrorCode.present
+        ? lastErrorCode.value
+        : this.lastErrorCode,
+    lastErrorText: lastErrorText.present
+        ? lastErrorText.value
+        : this.lastErrorText,
+    outcomeUnknown: outcomeUnknown ?? this.outcomeUnknown,
+    outboxPaused: outboxPaused ?? this.outboxPaused,
   );
   LocalMessageRow copyWithCompanion(LocalMessagesCompanion data) {
     return LocalMessageRow(
@@ -1898,6 +3076,15 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
       replyToJson: data.replyToJson.present
           ? data.replyToJson.value
           : this.replyToJson,
+      replyTargetId: data.replyTargetId.present
+          ? data.replyTargetId.value
+          : this.replyTargetId,
+      uploadBytes: data.uploadBytes.present
+          ? data.uploadBytes.value
+          : this.uploadBytes,
+      uploadFilename: data.uploadFilename.present
+          ? data.uploadFilename.value
+          : this.uploadFilename,
       status: data.status.present ? data.status.value : this.status,
       isEdited: data.isEdited.present ? data.isEdited.value : this.isEdited,
       isDeletedForAll: data.isDeletedForAll.present
@@ -1908,6 +3095,36 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
           : this.deliveredAt,
       seenAt: data.seenAt.present ? data.seenAt.value : this.seenAt,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      messageSeq: data.messageSeq.present
+          ? data.messageSeq.value
+          : this.messageSeq,
+      deliveredByCursor: data.deliveredByCursor.present
+          ? data.deliveredByCursor.value
+          : this.deliveredByCursor,
+      seenByCursor: data.seenByCursor.present
+          ? data.seenByCursor.value
+          : this.seenByCursor,
+      enqueueOrder: data.enqueueOrder.present
+          ? data.enqueueOrder.value
+          : this.enqueueOrder,
+      retryCount: data.retryCount.present
+          ? data.retryCount.value
+          : this.retryCount,
+      nextAttemptAt: data.nextAttemptAt.present
+          ? data.nextAttemptAt.value
+          : this.nextAttemptAt,
+      lastErrorCode: data.lastErrorCode.present
+          ? data.lastErrorCode.value
+          : this.lastErrorCode,
+      lastErrorText: data.lastErrorText.present
+          ? data.lastErrorText.value
+          : this.lastErrorText,
+      outcomeUnknown: data.outcomeUnknown.present
+          ? data.outcomeUnknown.value
+          : this.outcomeUnknown,
+      outboxPaused: data.outboxPaused.present
+          ? data.outboxPaused.value
+          : this.outboxPaused,
     );
   }
 
@@ -1925,18 +3142,31 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
           ..write('content: $content, ')
           ..write('imageUrl: $imageUrl, ')
           ..write('replyToJson: $replyToJson, ')
+          ..write('replyTargetId: $replyTargetId, ')
+          ..write('uploadBytes: $uploadBytes, ')
+          ..write('uploadFilename: $uploadFilename, ')
           ..write('status: $status, ')
           ..write('isEdited: $isEdited, ')
           ..write('isDeletedForAll: $isDeletedForAll, ')
           ..write('deliveredAt: $deliveredAt, ')
           ..write('seenAt: $seenAt, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('messageSeq: $messageSeq, ')
+          ..write('deliveredByCursor: $deliveredByCursor, ')
+          ..write('seenByCursor: $seenByCursor, ')
+          ..write('enqueueOrder: $enqueueOrder, ')
+          ..write('retryCount: $retryCount, ')
+          ..write('nextAttemptAt: $nextAttemptAt, ')
+          ..write('lastErrorCode: $lastErrorCode, ')
+          ..write('lastErrorText: $lastErrorText, ')
+          ..write('outcomeUnknown: $outcomeUnknown, ')
+          ..write('outboxPaused: $outboxPaused')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     idempotencyKey,
     roomId,
@@ -1948,13 +3178,26 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
     content,
     imageUrl,
     replyToJson,
+    replyTargetId,
+    $driftBlobEquality.hash(uploadBytes),
+    uploadFilename,
     status,
     isEdited,
     isDeletedForAll,
     deliveredAt,
     seenAt,
     createdAt,
-  );
+    messageSeq,
+    deliveredByCursor,
+    seenByCursor,
+    enqueueOrder,
+    retryCount,
+    nextAttemptAt,
+    lastErrorCode,
+    lastErrorText,
+    outcomeUnknown,
+    outboxPaused,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1970,12 +3213,25 @@ class LocalMessageRow extends DataClass implements Insertable<LocalMessageRow> {
           other.content == this.content &&
           other.imageUrl == this.imageUrl &&
           other.replyToJson == this.replyToJson &&
+          other.replyTargetId == this.replyTargetId &&
+          $driftBlobEquality.equals(other.uploadBytes, this.uploadBytes) &&
+          other.uploadFilename == this.uploadFilename &&
           other.status == this.status &&
           other.isEdited == this.isEdited &&
           other.isDeletedForAll == this.isDeletedForAll &&
           other.deliveredAt == this.deliveredAt &&
           other.seenAt == this.seenAt &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.messageSeq == this.messageSeq &&
+          other.deliveredByCursor == this.deliveredByCursor &&
+          other.seenByCursor == this.seenByCursor &&
+          other.enqueueOrder == this.enqueueOrder &&
+          other.retryCount == this.retryCount &&
+          other.nextAttemptAt == this.nextAttemptAt &&
+          other.lastErrorCode == this.lastErrorCode &&
+          other.lastErrorText == this.lastErrorText &&
+          other.outcomeUnknown == this.outcomeUnknown &&
+          other.outboxPaused == this.outboxPaused);
 }
 
 class LocalMessagesCompanion extends UpdateCompanion<LocalMessageRow> {
@@ -1990,12 +3246,25 @@ class LocalMessagesCompanion extends UpdateCompanion<LocalMessageRow> {
   final Value<String> content;
   final Value<String?> imageUrl;
   final Value<String?> replyToJson;
+  final Value<String?> replyTargetId;
+  final Value<Uint8List?> uploadBytes;
+  final Value<String?> uploadFilename;
   final Value<String> status;
   final Value<bool> isEdited;
   final Value<bool> isDeletedForAll;
   final Value<int?> deliveredAt;
   final Value<int?> seenAt;
   final Value<int> createdAt;
+  final Value<int?> messageSeq;
+  final Value<bool> deliveredByCursor;
+  final Value<bool> seenByCursor;
+  final Value<int?> enqueueOrder;
+  final Value<int> retryCount;
+  final Value<int?> nextAttemptAt;
+  final Value<String?> lastErrorCode;
+  final Value<String?> lastErrorText;
+  final Value<bool> outcomeUnknown;
+  final Value<bool> outboxPaused;
   final Value<int> rowid;
   const LocalMessagesCompanion({
     this.id = const Value.absent(),
@@ -2009,12 +3278,25 @@ class LocalMessagesCompanion extends UpdateCompanion<LocalMessageRow> {
     this.content = const Value.absent(),
     this.imageUrl = const Value.absent(),
     this.replyToJson = const Value.absent(),
+    this.replyTargetId = const Value.absent(),
+    this.uploadBytes = const Value.absent(),
+    this.uploadFilename = const Value.absent(),
     this.status = const Value.absent(),
     this.isEdited = const Value.absent(),
     this.isDeletedForAll = const Value.absent(),
     this.deliveredAt = const Value.absent(),
     this.seenAt = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.messageSeq = const Value.absent(),
+    this.deliveredByCursor = const Value.absent(),
+    this.seenByCursor = const Value.absent(),
+    this.enqueueOrder = const Value.absent(),
+    this.retryCount = const Value.absent(),
+    this.nextAttemptAt = const Value.absent(),
+    this.lastErrorCode = const Value.absent(),
+    this.lastErrorText = const Value.absent(),
+    this.outcomeUnknown = const Value.absent(),
+    this.outboxPaused = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   LocalMessagesCompanion.insert({
@@ -2029,12 +3311,25 @@ class LocalMessagesCompanion extends UpdateCompanion<LocalMessageRow> {
     required String content,
     this.imageUrl = const Value.absent(),
     this.replyToJson = const Value.absent(),
+    this.replyTargetId = const Value.absent(),
+    this.uploadBytes = const Value.absent(),
+    this.uploadFilename = const Value.absent(),
     required String status,
     this.isEdited = const Value.absent(),
     this.isDeletedForAll = const Value.absent(),
     this.deliveredAt = const Value.absent(),
     this.seenAt = const Value.absent(),
     required int createdAt,
+    this.messageSeq = const Value.absent(),
+    this.deliveredByCursor = const Value.absent(),
+    this.seenByCursor = const Value.absent(),
+    this.enqueueOrder = const Value.absent(),
+    this.retryCount = const Value.absent(),
+    this.nextAttemptAt = const Value.absent(),
+    this.lastErrorCode = const Value.absent(),
+    this.lastErrorText = const Value.absent(),
+    this.outcomeUnknown = const Value.absent(),
+    this.outboxPaused = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        idempotencyKey = Value(idempotencyKey),
@@ -2057,12 +3352,25 @@ class LocalMessagesCompanion extends UpdateCompanion<LocalMessageRow> {
     Expression<String>? content,
     Expression<String>? imageUrl,
     Expression<String>? replyToJson,
+    Expression<String>? replyTargetId,
+    Expression<Uint8List>? uploadBytes,
+    Expression<String>? uploadFilename,
     Expression<String>? status,
     Expression<bool>? isEdited,
     Expression<bool>? isDeletedForAll,
     Expression<int>? deliveredAt,
     Expression<int>? seenAt,
     Expression<int>? createdAt,
+    Expression<int>? messageSeq,
+    Expression<bool>? deliveredByCursor,
+    Expression<bool>? seenByCursor,
+    Expression<int>? enqueueOrder,
+    Expression<int>? retryCount,
+    Expression<int>? nextAttemptAt,
+    Expression<String>? lastErrorCode,
+    Expression<String>? lastErrorText,
+    Expression<bool>? outcomeUnknown,
+    Expression<bool>? outboxPaused,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2077,12 +3385,25 @@ class LocalMessagesCompanion extends UpdateCompanion<LocalMessageRow> {
       if (content != null) 'text': content,
       if (imageUrl != null) 'image_url': imageUrl,
       if (replyToJson != null) 'reply_to_json': replyToJson,
+      if (replyTargetId != null) 'reply_target_id': replyTargetId,
+      if (uploadBytes != null) 'upload_bytes': uploadBytes,
+      if (uploadFilename != null) 'upload_filename': uploadFilename,
       if (status != null) 'status': status,
       if (isEdited != null) 'is_edited': isEdited,
       if (isDeletedForAll != null) 'is_deleted_for_all': isDeletedForAll,
       if (deliveredAt != null) 'delivered_at': deliveredAt,
       if (seenAt != null) 'seen_at': seenAt,
       if (createdAt != null) 'created_at': createdAt,
+      if (messageSeq != null) 'message_seq': messageSeq,
+      if (deliveredByCursor != null) 'delivered_by_cursor': deliveredByCursor,
+      if (seenByCursor != null) 'seen_by_cursor': seenByCursor,
+      if (enqueueOrder != null) 'enqueue_order': enqueueOrder,
+      if (retryCount != null) 'retry_count': retryCount,
+      if (nextAttemptAt != null) 'next_attempt_at': nextAttemptAt,
+      if (lastErrorCode != null) 'last_error_code': lastErrorCode,
+      if (lastErrorText != null) 'last_error_text': lastErrorText,
+      if (outcomeUnknown != null) 'outcome_unknown': outcomeUnknown,
+      if (outboxPaused != null) 'outbox_paused': outboxPaused,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2099,12 +3420,25 @@ class LocalMessagesCompanion extends UpdateCompanion<LocalMessageRow> {
     Value<String>? content,
     Value<String?>? imageUrl,
     Value<String?>? replyToJson,
+    Value<String?>? replyTargetId,
+    Value<Uint8List?>? uploadBytes,
+    Value<String?>? uploadFilename,
     Value<String>? status,
     Value<bool>? isEdited,
     Value<bool>? isDeletedForAll,
     Value<int?>? deliveredAt,
     Value<int?>? seenAt,
     Value<int>? createdAt,
+    Value<int?>? messageSeq,
+    Value<bool>? deliveredByCursor,
+    Value<bool>? seenByCursor,
+    Value<int?>? enqueueOrder,
+    Value<int>? retryCount,
+    Value<int?>? nextAttemptAt,
+    Value<String?>? lastErrorCode,
+    Value<String?>? lastErrorText,
+    Value<bool>? outcomeUnknown,
+    Value<bool>? outboxPaused,
     Value<int>? rowid,
   }) {
     return LocalMessagesCompanion(
@@ -2119,12 +3453,25 @@ class LocalMessagesCompanion extends UpdateCompanion<LocalMessageRow> {
       content: content ?? this.content,
       imageUrl: imageUrl ?? this.imageUrl,
       replyToJson: replyToJson ?? this.replyToJson,
+      replyTargetId: replyTargetId ?? this.replyTargetId,
+      uploadBytes: uploadBytes ?? this.uploadBytes,
+      uploadFilename: uploadFilename ?? this.uploadFilename,
       status: status ?? this.status,
       isEdited: isEdited ?? this.isEdited,
       isDeletedForAll: isDeletedForAll ?? this.isDeletedForAll,
       deliveredAt: deliveredAt ?? this.deliveredAt,
       seenAt: seenAt ?? this.seenAt,
       createdAt: createdAt ?? this.createdAt,
+      messageSeq: messageSeq ?? this.messageSeq,
+      deliveredByCursor: deliveredByCursor ?? this.deliveredByCursor,
+      seenByCursor: seenByCursor ?? this.seenByCursor,
+      enqueueOrder: enqueueOrder ?? this.enqueueOrder,
+      retryCount: retryCount ?? this.retryCount,
+      nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
+      lastErrorCode: lastErrorCode ?? this.lastErrorCode,
+      lastErrorText: lastErrorText ?? this.lastErrorText,
+      outcomeUnknown: outcomeUnknown ?? this.outcomeUnknown,
+      outboxPaused: outboxPaused ?? this.outboxPaused,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2165,6 +3512,15 @@ class LocalMessagesCompanion extends UpdateCompanion<LocalMessageRow> {
     if (replyToJson.present) {
       map['reply_to_json'] = Variable<String>(replyToJson.value);
     }
+    if (replyTargetId.present) {
+      map['reply_target_id'] = Variable<String>(replyTargetId.value);
+    }
+    if (uploadBytes.present) {
+      map['upload_bytes'] = Variable<Uint8List>(uploadBytes.value);
+    }
+    if (uploadFilename.present) {
+      map['upload_filename'] = Variable<String>(uploadFilename.value);
+    }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
     }
@@ -2182,6 +3538,36 @@ class LocalMessagesCompanion extends UpdateCompanion<LocalMessageRow> {
     }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (messageSeq.present) {
+      map['message_seq'] = Variable<int>(messageSeq.value);
+    }
+    if (deliveredByCursor.present) {
+      map['delivered_by_cursor'] = Variable<bool>(deliveredByCursor.value);
+    }
+    if (seenByCursor.present) {
+      map['seen_by_cursor'] = Variable<bool>(seenByCursor.value);
+    }
+    if (enqueueOrder.present) {
+      map['enqueue_order'] = Variable<int>(enqueueOrder.value);
+    }
+    if (retryCount.present) {
+      map['retry_count'] = Variable<int>(retryCount.value);
+    }
+    if (nextAttemptAt.present) {
+      map['next_attempt_at'] = Variable<int>(nextAttemptAt.value);
+    }
+    if (lastErrorCode.present) {
+      map['last_error_code'] = Variable<String>(lastErrorCode.value);
+    }
+    if (lastErrorText.present) {
+      map['last_error_text'] = Variable<String>(lastErrorText.value);
+    }
+    if (outcomeUnknown.present) {
+      map['outcome_unknown'] = Variable<bool>(outcomeUnknown.value);
+    }
+    if (outboxPaused.present) {
+      map['outbox_paused'] = Variable<bool>(outboxPaused.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -2203,12 +3589,717 @@ class LocalMessagesCompanion extends UpdateCompanion<LocalMessageRow> {
           ..write('content: $content, ')
           ..write('imageUrl: $imageUrl, ')
           ..write('replyToJson: $replyToJson, ')
+          ..write('replyTargetId: $replyTargetId, ')
+          ..write('uploadBytes: $uploadBytes, ')
+          ..write('uploadFilename: $uploadFilename, ')
           ..write('status: $status, ')
           ..write('isEdited: $isEdited, ')
           ..write('isDeletedForAll: $isDeletedForAll, ')
           ..write('deliveredAt: $deliveredAt, ')
           ..write('seenAt: $seenAt, ')
           ..write('createdAt: $createdAt, ')
+          ..write('messageSeq: $messageSeq, ')
+          ..write('deliveredByCursor: $deliveredByCursor, ')
+          ..write('seenByCursor: $seenByCursor, ')
+          ..write('enqueueOrder: $enqueueOrder, ')
+          ..write('retryCount: $retryCount, ')
+          ..write('nextAttemptAt: $nextAttemptAt, ')
+          ..write('lastErrorCode: $lastErrorCode, ')
+          ..write('lastErrorText: $lastErrorText, ')
+          ..write('outcomeUnknown: $outcomeUnknown, ')
+          ..write('outboxPaused: $outboxPaused, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ReceiptTasksTable extends ReceiptTasks
+    with TableInfo<$ReceiptTasksTable, ReceiptTaskRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ReceiptTasksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _roomIdMeta = const VerificationMeta('roomId');
+  @override
+  late final GeneratedColumn<String> roomId = GeneratedColumn<String>(
+    'room_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _receiptProtocolMeta = const VerificationMeta(
+    'receiptProtocol',
+  );
+  @override
+  late final GeneratedColumn<String> receiptProtocol = GeneratedColumn<String>(
+    'receipt_protocol',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('legacy'),
+  );
+  static const VerificationMeta _deliveredTargetSeqMeta =
+      const VerificationMeta('deliveredTargetSeq');
+  @override
+  late final GeneratedColumn<int> deliveredTargetSeq = GeneratedColumn<int>(
+    'delivered_target_seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _seenTargetSeqMeta = const VerificationMeta(
+    'seenTargetSeq',
+  );
+  @override
+  late final GeneratedColumn<int> seenTargetSeq = GeneratedColumn<int>(
+    'seen_target_seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _deliveredConfirmedSeqMeta =
+      const VerificationMeta('deliveredConfirmedSeq');
+  @override
+  late final GeneratedColumn<int> deliveredConfirmedSeq = GeneratedColumn<int>(
+    'delivered_confirmed_seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _seenConfirmedSeqMeta = const VerificationMeta(
+    'seenConfirmedSeq',
+  );
+  @override
+  late final GeneratedColumn<int> seenConfirmedSeq = GeneratedColumn<int>(
+    'seen_confirmed_seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _deliveredTargetTimestampMeta =
+      const VerificationMeta('deliveredTargetTimestamp');
+  @override
+  late final GeneratedColumn<int> deliveredTargetTimestamp =
+      GeneratedColumn<int>(
+        'delivered_target_timestamp',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _seenTargetTimestampMeta =
+      const VerificationMeta('seenTargetTimestamp');
+  @override
+  late final GeneratedColumn<int> seenTargetTimestamp = GeneratedColumn<int>(
+    'seen_target_timestamp',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _deliveredConfirmedTimestampMeta =
+      const VerificationMeta('deliveredConfirmedTimestamp');
+  @override
+  late final GeneratedColumn<int> deliveredConfirmedTimestamp =
+      GeneratedColumn<int>(
+        'delivered_confirmed_timestamp',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _seenConfirmedTimestampMeta =
+      const VerificationMeta('seenConfirmedTimestamp');
+  @override
+  late final GeneratedColumn<int> seenConfirmedTimestamp = GeneratedColumn<int>(
+    'seen_confirmed_timestamp',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    roomId,
+    receiptProtocol,
+    deliveredTargetSeq,
+    seenTargetSeq,
+    deliveredConfirmedSeq,
+    seenConfirmedSeq,
+    deliveredTargetTimestamp,
+    seenTargetTimestamp,
+    deliveredConfirmedTimestamp,
+    seenConfirmedTimestamp,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'receipt_tasks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ReceiptTaskRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('room_id')) {
+      context.handle(
+        _roomIdMeta,
+        roomId.isAcceptableOrUnknown(data['room_id']!, _roomIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_roomIdMeta);
+    }
+    if (data.containsKey('receipt_protocol')) {
+      context.handle(
+        _receiptProtocolMeta,
+        receiptProtocol.isAcceptableOrUnknown(
+          data['receipt_protocol']!,
+          _receiptProtocolMeta,
+        ),
+      );
+    }
+    if (data.containsKey('delivered_target_seq')) {
+      context.handle(
+        _deliveredTargetSeqMeta,
+        deliveredTargetSeq.isAcceptableOrUnknown(
+          data['delivered_target_seq']!,
+          _deliveredTargetSeqMeta,
+        ),
+      );
+    }
+    if (data.containsKey('seen_target_seq')) {
+      context.handle(
+        _seenTargetSeqMeta,
+        seenTargetSeq.isAcceptableOrUnknown(
+          data['seen_target_seq']!,
+          _seenTargetSeqMeta,
+        ),
+      );
+    }
+    if (data.containsKey('delivered_confirmed_seq')) {
+      context.handle(
+        _deliveredConfirmedSeqMeta,
+        deliveredConfirmedSeq.isAcceptableOrUnknown(
+          data['delivered_confirmed_seq']!,
+          _deliveredConfirmedSeqMeta,
+        ),
+      );
+    }
+    if (data.containsKey('seen_confirmed_seq')) {
+      context.handle(
+        _seenConfirmedSeqMeta,
+        seenConfirmedSeq.isAcceptableOrUnknown(
+          data['seen_confirmed_seq']!,
+          _seenConfirmedSeqMeta,
+        ),
+      );
+    }
+    if (data.containsKey('delivered_target_timestamp')) {
+      context.handle(
+        _deliveredTargetTimestampMeta,
+        deliveredTargetTimestamp.isAcceptableOrUnknown(
+          data['delivered_target_timestamp']!,
+          _deliveredTargetTimestampMeta,
+        ),
+      );
+    }
+    if (data.containsKey('seen_target_timestamp')) {
+      context.handle(
+        _seenTargetTimestampMeta,
+        seenTargetTimestamp.isAcceptableOrUnknown(
+          data['seen_target_timestamp']!,
+          _seenTargetTimestampMeta,
+        ),
+      );
+    }
+    if (data.containsKey('delivered_confirmed_timestamp')) {
+      context.handle(
+        _deliveredConfirmedTimestampMeta,
+        deliveredConfirmedTimestamp.isAcceptableOrUnknown(
+          data['delivered_confirmed_timestamp']!,
+          _deliveredConfirmedTimestampMeta,
+        ),
+      );
+    }
+    if (data.containsKey('seen_confirmed_timestamp')) {
+      context.handle(
+        _seenConfirmedTimestampMeta,
+        seenConfirmedTimestamp.isAcceptableOrUnknown(
+          data['seen_confirmed_timestamp']!,
+          _seenConfirmedTimestampMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {roomId};
+  @override
+  ReceiptTaskRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ReceiptTaskRow(
+      roomId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}room_id'],
+      )!,
+      receiptProtocol: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}receipt_protocol'],
+      )!,
+      deliveredTargetSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}delivered_target_seq'],
+      )!,
+      seenTargetSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seen_target_seq'],
+      )!,
+      deliveredConfirmedSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}delivered_confirmed_seq'],
+      )!,
+      seenConfirmedSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seen_confirmed_seq'],
+      )!,
+      deliveredTargetTimestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}delivered_target_timestamp'],
+      ),
+      seenTargetTimestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seen_target_timestamp'],
+      ),
+      deliveredConfirmedTimestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}delivered_confirmed_timestamp'],
+      ),
+      seenConfirmedTimestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seen_confirmed_timestamp'],
+      ),
+    );
+  }
+
+  @override
+  $ReceiptTasksTable createAlias(String alias) {
+    return $ReceiptTasksTable(attachedDatabase, alias);
+  }
+}
+
+class ReceiptTaskRow extends DataClass implements Insertable<ReceiptTaskRow> {
+  final String roomId;
+  final String receiptProtocol;
+  final int deliveredTargetSeq;
+  final int seenTargetSeq;
+  final int deliveredConfirmedSeq;
+  final int seenConfirmedSeq;
+  final int? deliveredTargetTimestamp;
+  final int? seenTargetTimestamp;
+  final int? deliveredConfirmedTimestamp;
+  final int? seenConfirmedTimestamp;
+  const ReceiptTaskRow({
+    required this.roomId,
+    required this.receiptProtocol,
+    required this.deliveredTargetSeq,
+    required this.seenTargetSeq,
+    required this.deliveredConfirmedSeq,
+    required this.seenConfirmedSeq,
+    this.deliveredTargetTimestamp,
+    this.seenTargetTimestamp,
+    this.deliveredConfirmedTimestamp,
+    this.seenConfirmedTimestamp,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['room_id'] = Variable<String>(roomId);
+    map['receipt_protocol'] = Variable<String>(receiptProtocol);
+    map['delivered_target_seq'] = Variable<int>(deliveredTargetSeq);
+    map['seen_target_seq'] = Variable<int>(seenTargetSeq);
+    map['delivered_confirmed_seq'] = Variable<int>(deliveredConfirmedSeq);
+    map['seen_confirmed_seq'] = Variable<int>(seenConfirmedSeq);
+    if (!nullToAbsent || deliveredTargetTimestamp != null) {
+      map['delivered_target_timestamp'] = Variable<int>(
+        deliveredTargetTimestamp,
+      );
+    }
+    if (!nullToAbsent || seenTargetTimestamp != null) {
+      map['seen_target_timestamp'] = Variable<int>(seenTargetTimestamp);
+    }
+    if (!nullToAbsent || deliveredConfirmedTimestamp != null) {
+      map['delivered_confirmed_timestamp'] = Variable<int>(
+        deliveredConfirmedTimestamp,
+      );
+    }
+    if (!nullToAbsent || seenConfirmedTimestamp != null) {
+      map['seen_confirmed_timestamp'] = Variable<int>(seenConfirmedTimestamp);
+    }
+    return map;
+  }
+
+  ReceiptTasksCompanion toCompanion(bool nullToAbsent) {
+    return ReceiptTasksCompanion(
+      roomId: Value(roomId),
+      receiptProtocol: Value(receiptProtocol),
+      deliveredTargetSeq: Value(deliveredTargetSeq),
+      seenTargetSeq: Value(seenTargetSeq),
+      deliveredConfirmedSeq: Value(deliveredConfirmedSeq),
+      seenConfirmedSeq: Value(seenConfirmedSeq),
+      deliveredTargetTimestamp: deliveredTargetTimestamp == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deliveredTargetTimestamp),
+      seenTargetTimestamp: seenTargetTimestamp == null && nullToAbsent
+          ? const Value.absent()
+          : Value(seenTargetTimestamp),
+      deliveredConfirmedTimestamp:
+          deliveredConfirmedTimestamp == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deliveredConfirmedTimestamp),
+      seenConfirmedTimestamp: seenConfirmedTimestamp == null && nullToAbsent
+          ? const Value.absent()
+          : Value(seenConfirmedTimestamp),
+    );
+  }
+
+  factory ReceiptTaskRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ReceiptTaskRow(
+      roomId: serializer.fromJson<String>(json['roomId']),
+      receiptProtocol: serializer.fromJson<String>(json['receiptProtocol']),
+      deliveredTargetSeq: serializer.fromJson<int>(json['deliveredTargetSeq']),
+      seenTargetSeq: serializer.fromJson<int>(json['seenTargetSeq']),
+      deliveredConfirmedSeq: serializer.fromJson<int>(
+        json['deliveredConfirmedSeq'],
+      ),
+      seenConfirmedSeq: serializer.fromJson<int>(json['seenConfirmedSeq']),
+      deliveredTargetTimestamp: serializer.fromJson<int?>(
+        json['deliveredTargetTimestamp'],
+      ),
+      seenTargetTimestamp: serializer.fromJson<int?>(
+        json['seenTargetTimestamp'],
+      ),
+      deliveredConfirmedTimestamp: serializer.fromJson<int?>(
+        json['deliveredConfirmedTimestamp'],
+      ),
+      seenConfirmedTimestamp: serializer.fromJson<int?>(
+        json['seenConfirmedTimestamp'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'roomId': serializer.toJson<String>(roomId),
+      'receiptProtocol': serializer.toJson<String>(receiptProtocol),
+      'deliveredTargetSeq': serializer.toJson<int>(deliveredTargetSeq),
+      'seenTargetSeq': serializer.toJson<int>(seenTargetSeq),
+      'deliveredConfirmedSeq': serializer.toJson<int>(deliveredConfirmedSeq),
+      'seenConfirmedSeq': serializer.toJson<int>(seenConfirmedSeq),
+      'deliveredTargetTimestamp': serializer.toJson<int?>(
+        deliveredTargetTimestamp,
+      ),
+      'seenTargetTimestamp': serializer.toJson<int?>(seenTargetTimestamp),
+      'deliveredConfirmedTimestamp': serializer.toJson<int?>(
+        deliveredConfirmedTimestamp,
+      ),
+      'seenConfirmedTimestamp': serializer.toJson<int?>(seenConfirmedTimestamp),
+    };
+  }
+
+  ReceiptTaskRow copyWith({
+    String? roomId,
+    String? receiptProtocol,
+    int? deliveredTargetSeq,
+    int? seenTargetSeq,
+    int? deliveredConfirmedSeq,
+    int? seenConfirmedSeq,
+    Value<int?> deliveredTargetTimestamp = const Value.absent(),
+    Value<int?> seenTargetTimestamp = const Value.absent(),
+    Value<int?> deliveredConfirmedTimestamp = const Value.absent(),
+    Value<int?> seenConfirmedTimestamp = const Value.absent(),
+  }) => ReceiptTaskRow(
+    roomId: roomId ?? this.roomId,
+    receiptProtocol: receiptProtocol ?? this.receiptProtocol,
+    deliveredTargetSeq: deliveredTargetSeq ?? this.deliveredTargetSeq,
+    seenTargetSeq: seenTargetSeq ?? this.seenTargetSeq,
+    deliveredConfirmedSeq: deliveredConfirmedSeq ?? this.deliveredConfirmedSeq,
+    seenConfirmedSeq: seenConfirmedSeq ?? this.seenConfirmedSeq,
+    deliveredTargetTimestamp: deliveredTargetTimestamp.present
+        ? deliveredTargetTimestamp.value
+        : this.deliveredTargetTimestamp,
+    seenTargetTimestamp: seenTargetTimestamp.present
+        ? seenTargetTimestamp.value
+        : this.seenTargetTimestamp,
+    deliveredConfirmedTimestamp: deliveredConfirmedTimestamp.present
+        ? deliveredConfirmedTimestamp.value
+        : this.deliveredConfirmedTimestamp,
+    seenConfirmedTimestamp: seenConfirmedTimestamp.present
+        ? seenConfirmedTimestamp.value
+        : this.seenConfirmedTimestamp,
+  );
+  ReceiptTaskRow copyWithCompanion(ReceiptTasksCompanion data) {
+    return ReceiptTaskRow(
+      roomId: data.roomId.present ? data.roomId.value : this.roomId,
+      receiptProtocol: data.receiptProtocol.present
+          ? data.receiptProtocol.value
+          : this.receiptProtocol,
+      deliveredTargetSeq: data.deliveredTargetSeq.present
+          ? data.deliveredTargetSeq.value
+          : this.deliveredTargetSeq,
+      seenTargetSeq: data.seenTargetSeq.present
+          ? data.seenTargetSeq.value
+          : this.seenTargetSeq,
+      deliveredConfirmedSeq: data.deliveredConfirmedSeq.present
+          ? data.deliveredConfirmedSeq.value
+          : this.deliveredConfirmedSeq,
+      seenConfirmedSeq: data.seenConfirmedSeq.present
+          ? data.seenConfirmedSeq.value
+          : this.seenConfirmedSeq,
+      deliveredTargetTimestamp: data.deliveredTargetTimestamp.present
+          ? data.deliveredTargetTimestamp.value
+          : this.deliveredTargetTimestamp,
+      seenTargetTimestamp: data.seenTargetTimestamp.present
+          ? data.seenTargetTimestamp.value
+          : this.seenTargetTimestamp,
+      deliveredConfirmedTimestamp: data.deliveredConfirmedTimestamp.present
+          ? data.deliveredConfirmedTimestamp.value
+          : this.deliveredConfirmedTimestamp,
+      seenConfirmedTimestamp: data.seenConfirmedTimestamp.present
+          ? data.seenConfirmedTimestamp.value
+          : this.seenConfirmedTimestamp,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReceiptTaskRow(')
+          ..write('roomId: $roomId, ')
+          ..write('receiptProtocol: $receiptProtocol, ')
+          ..write('deliveredTargetSeq: $deliveredTargetSeq, ')
+          ..write('seenTargetSeq: $seenTargetSeq, ')
+          ..write('deliveredConfirmedSeq: $deliveredConfirmedSeq, ')
+          ..write('seenConfirmedSeq: $seenConfirmedSeq, ')
+          ..write('deliveredTargetTimestamp: $deliveredTargetTimestamp, ')
+          ..write('seenTargetTimestamp: $seenTargetTimestamp, ')
+          ..write('deliveredConfirmedTimestamp: $deliveredConfirmedTimestamp, ')
+          ..write('seenConfirmedTimestamp: $seenConfirmedTimestamp')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    roomId,
+    receiptProtocol,
+    deliveredTargetSeq,
+    seenTargetSeq,
+    deliveredConfirmedSeq,
+    seenConfirmedSeq,
+    deliveredTargetTimestamp,
+    seenTargetTimestamp,
+    deliveredConfirmedTimestamp,
+    seenConfirmedTimestamp,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ReceiptTaskRow &&
+          other.roomId == this.roomId &&
+          other.receiptProtocol == this.receiptProtocol &&
+          other.deliveredTargetSeq == this.deliveredTargetSeq &&
+          other.seenTargetSeq == this.seenTargetSeq &&
+          other.deliveredConfirmedSeq == this.deliveredConfirmedSeq &&
+          other.seenConfirmedSeq == this.seenConfirmedSeq &&
+          other.deliveredTargetTimestamp == this.deliveredTargetTimestamp &&
+          other.seenTargetTimestamp == this.seenTargetTimestamp &&
+          other.deliveredConfirmedTimestamp ==
+              this.deliveredConfirmedTimestamp &&
+          other.seenConfirmedTimestamp == this.seenConfirmedTimestamp);
+}
+
+class ReceiptTasksCompanion extends UpdateCompanion<ReceiptTaskRow> {
+  final Value<String> roomId;
+  final Value<String> receiptProtocol;
+  final Value<int> deliveredTargetSeq;
+  final Value<int> seenTargetSeq;
+  final Value<int> deliveredConfirmedSeq;
+  final Value<int> seenConfirmedSeq;
+  final Value<int?> deliveredTargetTimestamp;
+  final Value<int?> seenTargetTimestamp;
+  final Value<int?> deliveredConfirmedTimestamp;
+  final Value<int?> seenConfirmedTimestamp;
+  final Value<int> rowid;
+  const ReceiptTasksCompanion({
+    this.roomId = const Value.absent(),
+    this.receiptProtocol = const Value.absent(),
+    this.deliveredTargetSeq = const Value.absent(),
+    this.seenTargetSeq = const Value.absent(),
+    this.deliveredConfirmedSeq = const Value.absent(),
+    this.seenConfirmedSeq = const Value.absent(),
+    this.deliveredTargetTimestamp = const Value.absent(),
+    this.seenTargetTimestamp = const Value.absent(),
+    this.deliveredConfirmedTimestamp = const Value.absent(),
+    this.seenConfirmedTimestamp = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ReceiptTasksCompanion.insert({
+    required String roomId,
+    this.receiptProtocol = const Value.absent(),
+    this.deliveredTargetSeq = const Value.absent(),
+    this.seenTargetSeq = const Value.absent(),
+    this.deliveredConfirmedSeq = const Value.absent(),
+    this.seenConfirmedSeq = const Value.absent(),
+    this.deliveredTargetTimestamp = const Value.absent(),
+    this.seenTargetTimestamp = const Value.absent(),
+    this.deliveredConfirmedTimestamp = const Value.absent(),
+    this.seenConfirmedTimestamp = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : roomId = Value(roomId);
+  static Insertable<ReceiptTaskRow> custom({
+    Expression<String>? roomId,
+    Expression<String>? receiptProtocol,
+    Expression<int>? deliveredTargetSeq,
+    Expression<int>? seenTargetSeq,
+    Expression<int>? deliveredConfirmedSeq,
+    Expression<int>? seenConfirmedSeq,
+    Expression<int>? deliveredTargetTimestamp,
+    Expression<int>? seenTargetTimestamp,
+    Expression<int>? deliveredConfirmedTimestamp,
+    Expression<int>? seenConfirmedTimestamp,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (roomId != null) 'room_id': roomId,
+      if (receiptProtocol != null) 'receipt_protocol': receiptProtocol,
+      if (deliveredTargetSeq != null)
+        'delivered_target_seq': deliveredTargetSeq,
+      if (seenTargetSeq != null) 'seen_target_seq': seenTargetSeq,
+      if (deliveredConfirmedSeq != null)
+        'delivered_confirmed_seq': deliveredConfirmedSeq,
+      if (seenConfirmedSeq != null) 'seen_confirmed_seq': seenConfirmedSeq,
+      if (deliveredTargetTimestamp != null)
+        'delivered_target_timestamp': deliveredTargetTimestamp,
+      if (seenTargetTimestamp != null)
+        'seen_target_timestamp': seenTargetTimestamp,
+      if (deliveredConfirmedTimestamp != null)
+        'delivered_confirmed_timestamp': deliveredConfirmedTimestamp,
+      if (seenConfirmedTimestamp != null)
+        'seen_confirmed_timestamp': seenConfirmedTimestamp,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ReceiptTasksCompanion copyWith({
+    Value<String>? roomId,
+    Value<String>? receiptProtocol,
+    Value<int>? deliveredTargetSeq,
+    Value<int>? seenTargetSeq,
+    Value<int>? deliveredConfirmedSeq,
+    Value<int>? seenConfirmedSeq,
+    Value<int?>? deliveredTargetTimestamp,
+    Value<int?>? seenTargetTimestamp,
+    Value<int?>? deliveredConfirmedTimestamp,
+    Value<int?>? seenConfirmedTimestamp,
+    Value<int>? rowid,
+  }) {
+    return ReceiptTasksCompanion(
+      roomId: roomId ?? this.roomId,
+      receiptProtocol: receiptProtocol ?? this.receiptProtocol,
+      deliveredTargetSeq: deliveredTargetSeq ?? this.deliveredTargetSeq,
+      seenTargetSeq: seenTargetSeq ?? this.seenTargetSeq,
+      deliveredConfirmedSeq:
+          deliveredConfirmedSeq ?? this.deliveredConfirmedSeq,
+      seenConfirmedSeq: seenConfirmedSeq ?? this.seenConfirmedSeq,
+      deliveredTargetTimestamp:
+          deliveredTargetTimestamp ?? this.deliveredTargetTimestamp,
+      seenTargetTimestamp: seenTargetTimestamp ?? this.seenTargetTimestamp,
+      deliveredConfirmedTimestamp:
+          deliveredConfirmedTimestamp ?? this.deliveredConfirmedTimestamp,
+      seenConfirmedTimestamp:
+          seenConfirmedTimestamp ?? this.seenConfirmedTimestamp,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (roomId.present) {
+      map['room_id'] = Variable<String>(roomId.value);
+    }
+    if (receiptProtocol.present) {
+      map['receipt_protocol'] = Variable<String>(receiptProtocol.value);
+    }
+    if (deliveredTargetSeq.present) {
+      map['delivered_target_seq'] = Variable<int>(deliveredTargetSeq.value);
+    }
+    if (seenTargetSeq.present) {
+      map['seen_target_seq'] = Variable<int>(seenTargetSeq.value);
+    }
+    if (deliveredConfirmedSeq.present) {
+      map['delivered_confirmed_seq'] = Variable<int>(
+        deliveredConfirmedSeq.value,
+      );
+    }
+    if (seenConfirmedSeq.present) {
+      map['seen_confirmed_seq'] = Variable<int>(seenConfirmedSeq.value);
+    }
+    if (deliveredTargetTimestamp.present) {
+      map['delivered_target_timestamp'] = Variable<int>(
+        deliveredTargetTimestamp.value,
+      );
+    }
+    if (seenTargetTimestamp.present) {
+      map['seen_target_timestamp'] = Variable<int>(seenTargetTimestamp.value);
+    }
+    if (deliveredConfirmedTimestamp.present) {
+      map['delivered_confirmed_timestamp'] = Variable<int>(
+        deliveredConfirmedTimestamp.value,
+      );
+    }
+    if (seenConfirmedTimestamp.present) {
+      map['seen_confirmed_timestamp'] = Variable<int>(
+        seenConfirmedTimestamp.value,
+      );
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReceiptTasksCompanion(')
+          ..write('roomId: $roomId, ')
+          ..write('receiptProtocol: $receiptProtocol, ')
+          ..write('deliveredTargetSeq: $deliveredTargetSeq, ')
+          ..write('seenTargetSeq: $seenTargetSeq, ')
+          ..write('deliveredConfirmedSeq: $deliveredConfirmedSeq, ')
+          ..write('seenConfirmedSeq: $seenConfirmedSeq, ')
+          ..write('deliveredTargetTimestamp: $deliveredTargetTimestamp, ')
+          ..write('seenTargetTimestamp: $seenTargetTimestamp, ')
+          ..write('deliveredConfirmedTimestamp: $deliveredConfirmedTimestamp, ')
+          ..write('seenConfirmedTimestamp: $seenConfirmedTimestamp, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2221,9 +4312,18 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SyncMetadataTable syncMetadata = $SyncMetadataTable(this);
   late final $LocalRoomsTable localRooms = $LocalRoomsTable(this);
   late final $LocalMessagesTable localMessages = $LocalMessagesTable(this);
+  late final $ReceiptTasksTable receiptTasks = $ReceiptTasksTable(this);
   late final Index localMessagesRoomCreated = Index(
     'local_messages_room_created',
     'CREATE INDEX local_messages_room_created ON local_messages (room_id, created_at, id)',
+  );
+  late final Index localMessagesReplyTarget = Index(
+    'local_messages_reply_target',
+    'CREATE INDEX local_messages_reply_target ON local_messages (room_id, reply_target_id)',
+  );
+  late final Index localMessagesOutbox = Index(
+    'local_messages_outbox',
+    'CREATE INDEX local_messages_outbox ON local_messages (sender_id, status, enqueue_order)',
   );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -2233,7 +4333,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     syncMetadata,
     localRooms,
     localMessages,
+    receiptTasks,
     localMessagesRoomCreated,
+    localMessagesReplyTarget,
+    localMessagesOutbox,
   ];
 }
 
@@ -2243,6 +4346,10 @@ typedef $$SyncMetadataTableCreateCompanionBuilder =
       required String userId,
       Value<int> localPts,
       Value<String> localEpoch,
+      Value<String?> roomPageCursorJson,
+      Value<String?> roomPageEpoch,
+      Value<bool> roomPageKnown,
+      Value<int> lastOutboundOrder,
     });
 typedef $$SyncMetadataTableUpdateCompanionBuilder =
     SyncMetadataCompanion Function({
@@ -2250,6 +4357,10 @@ typedef $$SyncMetadataTableUpdateCompanionBuilder =
       Value<String> userId,
       Value<int> localPts,
       Value<String> localEpoch,
+      Value<String?> roomPageCursorJson,
+      Value<String?> roomPageEpoch,
+      Value<bool> roomPageKnown,
+      Value<int> lastOutboundOrder,
     });
 
 class $$SyncMetadataTableFilterComposer
@@ -2278,6 +4389,26 @@ class $$SyncMetadataTableFilterComposer
 
   ColumnFilters<String> get localEpoch => $composableBuilder(
     column: $table.localEpoch,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get roomPageCursorJson => $composableBuilder(
+    column: $table.roomPageCursorJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get roomPageEpoch => $composableBuilder(
+    column: $table.roomPageEpoch,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get roomPageKnown => $composableBuilder(
+    column: $table.roomPageKnown,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastOutboundOrder => $composableBuilder(
+    column: $table.lastOutboundOrder,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2310,6 +4441,26 @@ class $$SyncMetadataTableOrderingComposer
     column: $table.localEpoch,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get roomPageCursorJson => $composableBuilder(
+    column: $table.roomPageCursorJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get roomPageEpoch => $composableBuilder(
+    column: $table.roomPageEpoch,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get roomPageKnown => $composableBuilder(
+    column: $table.roomPageKnown,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastOutboundOrder => $composableBuilder(
+    column: $table.lastOutboundOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SyncMetadataTableAnnotationComposer
@@ -2332,6 +4483,26 @@ class $$SyncMetadataTableAnnotationComposer
 
   GeneratedColumn<String> get localEpoch => $composableBuilder(
     column: $table.localEpoch,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get roomPageCursorJson => $composableBuilder(
+    column: $table.roomPageCursorJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get roomPageEpoch => $composableBuilder(
+    column: $table.roomPageEpoch,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get roomPageKnown => $composableBuilder(
+    column: $table.roomPageKnown,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastOutboundOrder => $composableBuilder(
+    column: $table.lastOutboundOrder,
     builder: (column) => column,
   );
 }
@@ -2371,11 +4542,19 @@ class $$SyncMetadataTableTableManager
                 Value<String> userId = const Value.absent(),
                 Value<int> localPts = const Value.absent(),
                 Value<String> localEpoch = const Value.absent(),
+                Value<String?> roomPageCursorJson = const Value.absent(),
+                Value<String?> roomPageEpoch = const Value.absent(),
+                Value<bool> roomPageKnown = const Value.absent(),
+                Value<int> lastOutboundOrder = const Value.absent(),
               }) => SyncMetadataCompanion(
                 id: id,
                 userId: userId,
                 localPts: localPts,
                 localEpoch: localEpoch,
+                roomPageCursorJson: roomPageCursorJson,
+                roomPageEpoch: roomPageEpoch,
+                roomPageKnown: roomPageKnown,
+                lastOutboundOrder: lastOutboundOrder,
               ),
           createCompanionCallback:
               ({
@@ -2383,11 +4562,19 @@ class $$SyncMetadataTableTableManager
                 required String userId,
                 Value<int> localPts = const Value.absent(),
                 Value<String> localEpoch = const Value.absent(),
+                Value<String?> roomPageCursorJson = const Value.absent(),
+                Value<String?> roomPageEpoch = const Value.absent(),
+                Value<bool> roomPageKnown = const Value.absent(),
+                Value<int> lastOutboundOrder = const Value.absent(),
               }) => SyncMetadataCompanion.insert(
                 id: id,
                 userId: userId,
                 localPts: localPts,
                 localEpoch: localEpoch,
+                roomPageCursorJson: roomPageCursorJson,
+                roomPageEpoch: roomPageEpoch,
+                roomPageKnown: roomPageKnown,
+                lastOutboundOrder: lastOutboundOrder,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -2440,6 +4627,15 @@ typedef $$LocalRoomsTableCreateCompanionBuilder = LocalRoomsCompanion Function({
   Value<int> lastHistoryEditPts,
   Value<int> messagesSyncedPts,
   Value<String?> lastMessageJson,
+  Value<int?> contentPts,
+  Value<String> receiptProtocol,
+  Value<int> peerDeliveredSeq,
+  Value<int> peerSeenSeq,
+  Value<int> ownDeliveredSeq,
+  Value<int> ownSeenSeq,
+  Value<int> receivedThroughSeq,
+  Value<int> verifiedHeadSeq,
+  Value<String> receivedRangesJson,
   Value<int> rowid,
 });
 typedef $$LocalRoomsTableUpdateCompanionBuilder = LocalRoomsCompanion Function({
@@ -2459,6 +4655,15 @@ typedef $$LocalRoomsTableUpdateCompanionBuilder = LocalRoomsCompanion Function({
   Value<int> lastHistoryEditPts,
   Value<int> messagesSyncedPts,
   Value<String?> lastMessageJson,
+  Value<int?> contentPts,
+  Value<String> receiptProtocol,
+  Value<int> peerDeliveredSeq,
+  Value<int> peerSeenSeq,
+  Value<int> ownDeliveredSeq,
+  Value<int> ownSeenSeq,
+  Value<int> receivedThroughSeq,
+  Value<int> verifiedHeadSeq,
+  Value<String> receivedRangesJson,
   Value<int> rowid,
 });
 
@@ -2548,6 +4753,51 @@ class $$LocalRoomsTableFilterComposer
 
   ColumnFilters<String> get lastMessageJson => $composableBuilder(
     column: $table.lastMessageJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get contentPts => $composableBuilder(
+    column: $table.contentPts,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get receiptProtocol => $composableBuilder(
+    column: $table.receiptProtocol,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get peerDeliveredSeq => $composableBuilder(
+    column: $table.peerDeliveredSeq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get peerSeenSeq => $composableBuilder(
+    column: $table.peerSeenSeq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get ownDeliveredSeq => $composableBuilder(
+    column: $table.ownDeliveredSeq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get ownSeenSeq => $composableBuilder(
+    column: $table.ownSeenSeq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get receivedThroughSeq => $composableBuilder(
+    column: $table.receivedThroughSeq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get verifiedHeadSeq => $composableBuilder(
+    column: $table.verifiedHeadSeq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get receivedRangesJson => $composableBuilder(
+    column: $table.receivedRangesJson,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2640,6 +4890,51 @@ class $$LocalRoomsTableOrderingComposer
     column: $table.lastMessageJson,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get contentPts => $composableBuilder(
+    column: $table.contentPts,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get receiptProtocol => $composableBuilder(
+    column: $table.receiptProtocol,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get peerDeliveredSeq => $composableBuilder(
+    column: $table.peerDeliveredSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get peerSeenSeq => $composableBuilder(
+    column: $table.peerSeenSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get ownDeliveredSeq => $composableBuilder(
+    column: $table.ownDeliveredSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get ownSeenSeq => $composableBuilder(
+    column: $table.ownSeenSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get receivedThroughSeq => $composableBuilder(
+    column: $table.receivedThroughSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get verifiedHeadSeq => $composableBuilder(
+    column: $table.verifiedHeadSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get receivedRangesJson => $composableBuilder(
+    column: $table.receivedRangesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$LocalRoomsTableAnnotationComposer
@@ -2714,6 +5009,51 @@ class $$LocalRoomsTableAnnotationComposer
     column: $table.lastMessageJson,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get contentPts => $composableBuilder(
+    column: $table.contentPts,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get receiptProtocol => $composableBuilder(
+    column: $table.receiptProtocol,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get peerDeliveredSeq => $composableBuilder(
+    column: $table.peerDeliveredSeq,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get peerSeenSeq => $composableBuilder(
+    column: $table.peerSeenSeq,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get ownDeliveredSeq => $composableBuilder(
+    column: $table.ownDeliveredSeq,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get ownSeenSeq => $composableBuilder(
+    column: $table.ownSeenSeq,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get receivedThroughSeq => $composableBuilder(
+    column: $table.receivedThroughSeq,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get verifiedHeadSeq => $composableBuilder(
+    column: $table.verifiedHeadSeq,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get receivedRangesJson => $composableBuilder(
+    column: $table.receivedRangesJson,
+    builder: (column) => column,
+  );
 }
 
 class $$LocalRoomsTableTableManager
@@ -2763,6 +5103,15 @@ class $$LocalRoomsTableTableManager
                 Value<int> lastHistoryEditPts = const Value.absent(),
                 Value<int> messagesSyncedPts = const Value.absent(),
                 Value<String?> lastMessageJson = const Value.absent(),
+                Value<int?> contentPts = const Value.absent(),
+                Value<String> receiptProtocol = const Value.absent(),
+                Value<int> peerDeliveredSeq = const Value.absent(),
+                Value<int> peerSeenSeq = const Value.absent(),
+                Value<int> ownDeliveredSeq = const Value.absent(),
+                Value<int> ownSeenSeq = const Value.absent(),
+                Value<int> receivedThroughSeq = const Value.absent(),
+                Value<int> verifiedHeadSeq = const Value.absent(),
+                Value<String> receivedRangesJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LocalRoomsCompanion(
                 roomId: roomId,
@@ -2781,6 +5130,15 @@ class $$LocalRoomsTableTableManager
                 lastHistoryEditPts: lastHistoryEditPts,
                 messagesSyncedPts: messagesSyncedPts,
                 lastMessageJson: lastMessageJson,
+                contentPts: contentPts,
+                receiptProtocol: receiptProtocol,
+                peerDeliveredSeq: peerDeliveredSeq,
+                peerSeenSeq: peerSeenSeq,
+                ownDeliveredSeq: ownDeliveredSeq,
+                ownSeenSeq: ownSeenSeq,
+                receivedThroughSeq: receivedThroughSeq,
+                verifiedHeadSeq: verifiedHeadSeq,
+                receivedRangesJson: receivedRangesJson,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2801,6 +5159,15 @@ class $$LocalRoomsTableTableManager
                 Value<int> lastHistoryEditPts = const Value.absent(),
                 Value<int> messagesSyncedPts = const Value.absent(),
                 Value<String?> lastMessageJson = const Value.absent(),
+                Value<int?> contentPts = const Value.absent(),
+                Value<String> receiptProtocol = const Value.absent(),
+                Value<int> peerDeliveredSeq = const Value.absent(),
+                Value<int> peerSeenSeq = const Value.absent(),
+                Value<int> ownDeliveredSeq = const Value.absent(),
+                Value<int> ownSeenSeq = const Value.absent(),
+                Value<int> receivedThroughSeq = const Value.absent(),
+                Value<int> verifiedHeadSeq = const Value.absent(),
+                Value<String> receivedRangesJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LocalRoomsCompanion.insert(
                 roomId: roomId,
@@ -2819,6 +5186,15 @@ class $$LocalRoomsTableTableManager
                 lastHistoryEditPts: lastHistoryEditPts,
                 messagesSyncedPts: messagesSyncedPts,
                 lastMessageJson: lastMessageJson,
+                contentPts: contentPts,
+                receiptProtocol: receiptProtocol,
+                peerDeliveredSeq: peerDeliveredSeq,
+                peerSeenSeq: peerSeenSeq,
+                ownDeliveredSeq: ownDeliveredSeq,
+                ownSeenSeq: ownSeenSeq,
+                receivedThroughSeq: receivedThroughSeq,
+                verifiedHeadSeq: verifiedHeadSeq,
+                receivedRangesJson: receivedRangesJson,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -2868,12 +5244,25 @@ typedef $$LocalMessagesTableCreateCompanionBuilder =
       required String content,
       Value<String?> imageUrl,
       Value<String?> replyToJson,
+      Value<String?> replyTargetId,
+      Value<Uint8List?> uploadBytes,
+      Value<String?> uploadFilename,
       required String status,
       Value<bool> isEdited,
       Value<bool> isDeletedForAll,
       Value<int?> deliveredAt,
       Value<int?> seenAt,
       required int createdAt,
+      Value<int?> messageSeq,
+      Value<bool> deliveredByCursor,
+      Value<bool> seenByCursor,
+      Value<int?> enqueueOrder,
+      Value<int> retryCount,
+      Value<int?> nextAttemptAt,
+      Value<String?> lastErrorCode,
+      Value<String?> lastErrorText,
+      Value<bool> outcomeUnknown,
+      Value<bool> outboxPaused,
       Value<int> rowid,
     });
 typedef $$LocalMessagesTableUpdateCompanionBuilder =
@@ -2889,12 +5278,25 @@ typedef $$LocalMessagesTableUpdateCompanionBuilder =
       Value<String> content,
       Value<String?> imageUrl,
       Value<String?> replyToJson,
+      Value<String?> replyTargetId,
+      Value<Uint8List?> uploadBytes,
+      Value<String?> uploadFilename,
       Value<String> status,
       Value<bool> isEdited,
       Value<bool> isDeletedForAll,
       Value<int?> deliveredAt,
       Value<int?> seenAt,
       Value<int> createdAt,
+      Value<int?> messageSeq,
+      Value<bool> deliveredByCursor,
+      Value<bool> seenByCursor,
+      Value<int?> enqueueOrder,
+      Value<int> retryCount,
+      Value<int?> nextAttemptAt,
+      Value<String?> lastErrorCode,
+      Value<String?> lastErrorText,
+      Value<bool> outcomeUnknown,
+      Value<bool> outboxPaused,
       Value<int> rowid,
     });
 
@@ -2962,6 +5364,21 @@ class $$LocalMessagesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get replyTargetId => $composableBuilder(
+    column: $table.replyTargetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get uploadBytes => $composableBuilder(
+    column: $table.uploadBytes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uploadFilename => $composableBuilder(
+    column: $table.uploadFilename,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get status => $composableBuilder(
     column: $table.status,
     builder: (column) => ColumnFilters(column),
@@ -2989,6 +5406,56 @@ class $$LocalMessagesTableFilterComposer
 
   ColumnFilters<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get messageSeq => $composableBuilder(
+    column: $table.messageSeq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get deliveredByCursor => $composableBuilder(
+    column: $table.deliveredByCursor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get seenByCursor => $composableBuilder(
+    column: $table.seenByCursor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get enqueueOrder => $composableBuilder(
+    column: $table.enqueueOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get retryCount => $composableBuilder(
+    column: $table.retryCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastErrorCode => $composableBuilder(
+    column: $table.lastErrorCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastErrorText => $composableBuilder(
+    column: $table.lastErrorText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get outcomeUnknown => $composableBuilder(
+    column: $table.outcomeUnknown,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get outboxPaused => $composableBuilder(
+    column: $table.outboxPaused,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3057,6 +5524,21 @@ class $$LocalMessagesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get replyTargetId => $composableBuilder(
+    column: $table.replyTargetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get uploadBytes => $composableBuilder(
+    column: $table.uploadBytes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get uploadFilename => $composableBuilder(
+    column: $table.uploadFilename,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get status => $composableBuilder(
     column: $table.status,
     builder: (column) => ColumnOrderings(column),
@@ -3084,6 +5566,56 @@ class $$LocalMessagesTableOrderingComposer
 
   ColumnOrderings<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get messageSeq => $composableBuilder(
+    column: $table.messageSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get deliveredByCursor => $composableBuilder(
+    column: $table.deliveredByCursor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get seenByCursor => $composableBuilder(
+    column: $table.seenByCursor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get enqueueOrder => $composableBuilder(
+    column: $table.enqueueOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get retryCount => $composableBuilder(
+    column: $table.retryCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastErrorCode => $composableBuilder(
+    column: $table.lastErrorCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastErrorText => $composableBuilder(
+    column: $table.lastErrorText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get outcomeUnknown => $composableBuilder(
+    column: $table.outcomeUnknown,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get outboxPaused => $composableBuilder(
+    column: $table.outboxPaused,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -3140,6 +5672,21 @@ class $$LocalMessagesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get replyTargetId => $composableBuilder(
+    column: $table.replyTargetId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<Uint8List> get uploadBytes => $composableBuilder(
+    column: $table.uploadBytes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get uploadFilename => $composableBuilder(
+    column: $table.uploadFilename,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
 
@@ -3161,6 +5708,56 @@ class $$LocalMessagesTableAnnotationComposer
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get messageSeq => $composableBuilder(
+    column: $table.messageSeq,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get deliveredByCursor => $composableBuilder(
+    column: $table.deliveredByCursor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get seenByCursor => $composableBuilder(
+    column: $table.seenByCursor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get enqueueOrder => $composableBuilder(
+    column: $table.enqueueOrder,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get retryCount => $composableBuilder(
+    column: $table.retryCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastErrorCode => $composableBuilder(
+    column: $table.lastErrorCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastErrorText => $composableBuilder(
+    column: $table.lastErrorText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get outcomeUnknown => $composableBuilder(
+    column: $table.outcomeUnknown,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get outboxPaused => $composableBuilder(
+    column: $table.outboxPaused,
+    builder: (column) => column,
+  );
 }
 
 class $$LocalMessagesTableTableManager
@@ -3205,12 +5802,25 @@ class $$LocalMessagesTableTableManager
                 Value<String> content = const Value.absent(),
                 Value<String?> imageUrl = const Value.absent(),
                 Value<String?> replyToJson = const Value.absent(),
+                Value<String?> replyTargetId = const Value.absent(),
+                Value<Uint8List?> uploadBytes = const Value.absent(),
+                Value<String?> uploadFilename = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<bool> isEdited = const Value.absent(),
                 Value<bool> isDeletedForAll = const Value.absent(),
                 Value<int?> deliveredAt = const Value.absent(),
                 Value<int?> seenAt = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
+                Value<int?> messageSeq = const Value.absent(),
+                Value<bool> deliveredByCursor = const Value.absent(),
+                Value<bool> seenByCursor = const Value.absent(),
+                Value<int?> enqueueOrder = const Value.absent(),
+                Value<int> retryCount = const Value.absent(),
+                Value<int?> nextAttemptAt = const Value.absent(),
+                Value<String?> lastErrorCode = const Value.absent(),
+                Value<String?> lastErrorText = const Value.absent(),
+                Value<bool> outcomeUnknown = const Value.absent(),
+                Value<bool> outboxPaused = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LocalMessagesCompanion(
                 id: id,
@@ -3224,12 +5834,25 @@ class $$LocalMessagesTableTableManager
                 content: content,
                 imageUrl: imageUrl,
                 replyToJson: replyToJson,
+                replyTargetId: replyTargetId,
+                uploadBytes: uploadBytes,
+                uploadFilename: uploadFilename,
                 status: status,
                 isEdited: isEdited,
                 isDeletedForAll: isDeletedForAll,
                 deliveredAt: deliveredAt,
                 seenAt: seenAt,
                 createdAt: createdAt,
+                messageSeq: messageSeq,
+                deliveredByCursor: deliveredByCursor,
+                seenByCursor: seenByCursor,
+                enqueueOrder: enqueueOrder,
+                retryCount: retryCount,
+                nextAttemptAt: nextAttemptAt,
+                lastErrorCode: lastErrorCode,
+                lastErrorText: lastErrorText,
+                outcomeUnknown: outcomeUnknown,
+                outboxPaused: outboxPaused,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3245,12 +5868,25 @@ class $$LocalMessagesTableTableManager
                 required String content,
                 Value<String?> imageUrl = const Value.absent(),
                 Value<String?> replyToJson = const Value.absent(),
+                Value<String?> replyTargetId = const Value.absent(),
+                Value<Uint8List?> uploadBytes = const Value.absent(),
+                Value<String?> uploadFilename = const Value.absent(),
                 required String status,
                 Value<bool> isEdited = const Value.absent(),
                 Value<bool> isDeletedForAll = const Value.absent(),
                 Value<int?> deliveredAt = const Value.absent(),
                 Value<int?> seenAt = const Value.absent(),
                 required int createdAt,
+                Value<int?> messageSeq = const Value.absent(),
+                Value<bool> deliveredByCursor = const Value.absent(),
+                Value<bool> seenByCursor = const Value.absent(),
+                Value<int?> enqueueOrder = const Value.absent(),
+                Value<int> retryCount = const Value.absent(),
+                Value<int?> nextAttemptAt = const Value.absent(),
+                Value<String?> lastErrorCode = const Value.absent(),
+                Value<String?> lastErrorText = const Value.absent(),
+                Value<bool> outcomeUnknown = const Value.absent(),
+                Value<bool> outboxPaused = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LocalMessagesCompanion.insert(
                 id: id,
@@ -3264,12 +5900,25 @@ class $$LocalMessagesTableTableManager
                 content: content,
                 imageUrl: imageUrl,
                 replyToJson: replyToJson,
+                replyTargetId: replyTargetId,
+                uploadBytes: uploadBytes,
+                uploadFilename: uploadFilename,
                 status: status,
                 isEdited: isEdited,
                 isDeletedForAll: isDeletedForAll,
                 deliveredAt: deliveredAt,
                 seenAt: seenAt,
                 createdAt: createdAt,
+                messageSeq: messageSeq,
+                deliveredByCursor: deliveredByCursor,
+                seenByCursor: seenByCursor,
+                enqueueOrder: enqueueOrder,
+                retryCount: retryCount,
+                nextAttemptAt: nextAttemptAt,
+                lastErrorCode: lastErrorCode,
+                lastErrorText: lastErrorText,
+                outcomeUnknown: outcomeUnknown,
+                outboxPaused: outboxPaused,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -3306,6 +5955,328 @@ typedef $$LocalMessagesTableProcessedTableManager =
       LocalMessageRow,
       PrefetchHooks Function()
     >;
+typedef $$ReceiptTasksTableCreateCompanionBuilder =
+    ReceiptTasksCompanion Function({
+      required String roomId,
+      Value<String> receiptProtocol,
+      Value<int> deliveredTargetSeq,
+      Value<int> seenTargetSeq,
+      Value<int> deliveredConfirmedSeq,
+      Value<int> seenConfirmedSeq,
+      Value<int?> deliveredTargetTimestamp,
+      Value<int?> seenTargetTimestamp,
+      Value<int?> deliveredConfirmedTimestamp,
+      Value<int?> seenConfirmedTimestamp,
+      Value<int> rowid,
+    });
+typedef $$ReceiptTasksTableUpdateCompanionBuilder =
+    ReceiptTasksCompanion Function({
+      Value<String> roomId,
+      Value<String> receiptProtocol,
+      Value<int> deliveredTargetSeq,
+      Value<int> seenTargetSeq,
+      Value<int> deliveredConfirmedSeq,
+      Value<int> seenConfirmedSeq,
+      Value<int?> deliveredTargetTimestamp,
+      Value<int?> seenTargetTimestamp,
+      Value<int?> deliveredConfirmedTimestamp,
+      Value<int?> seenConfirmedTimestamp,
+      Value<int> rowid,
+    });
+
+class $$ReceiptTasksTableFilterComposer
+    extends Composer<_$AppDatabase, $ReceiptTasksTable> {
+  $$ReceiptTasksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get roomId => $composableBuilder(
+    column: $table.roomId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get receiptProtocol => $composableBuilder(
+    column: $table.receiptProtocol,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deliveredTargetSeq => $composableBuilder(
+    column: $table.deliveredTargetSeq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seenTargetSeq => $composableBuilder(
+    column: $table.seenTargetSeq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deliveredConfirmedSeq => $composableBuilder(
+    column: $table.deliveredConfirmedSeq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seenConfirmedSeq => $composableBuilder(
+    column: $table.seenConfirmedSeq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deliveredTargetTimestamp => $composableBuilder(
+    column: $table.deliveredTargetTimestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seenTargetTimestamp => $composableBuilder(
+    column: $table.seenTargetTimestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deliveredConfirmedTimestamp => $composableBuilder(
+    column: $table.deliveredConfirmedTimestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seenConfirmedTimestamp => $composableBuilder(
+    column: $table.seenConfirmedTimestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ReceiptTasksTableOrderingComposer
+    extends Composer<_$AppDatabase, $ReceiptTasksTable> {
+  $$ReceiptTasksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get roomId => $composableBuilder(
+    column: $table.roomId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get receiptProtocol => $composableBuilder(
+    column: $table.receiptProtocol,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deliveredTargetSeq => $composableBuilder(
+    column: $table.deliveredTargetSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seenTargetSeq => $composableBuilder(
+    column: $table.seenTargetSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deliveredConfirmedSeq => $composableBuilder(
+    column: $table.deliveredConfirmedSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seenConfirmedSeq => $composableBuilder(
+    column: $table.seenConfirmedSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deliveredTargetTimestamp => $composableBuilder(
+    column: $table.deliveredTargetTimestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seenTargetTimestamp => $composableBuilder(
+    column: $table.seenTargetTimestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deliveredConfirmedTimestamp => $composableBuilder(
+    column: $table.deliveredConfirmedTimestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seenConfirmedTimestamp => $composableBuilder(
+    column: $table.seenConfirmedTimestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ReceiptTasksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ReceiptTasksTable> {
+  $$ReceiptTasksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get roomId =>
+      $composableBuilder(column: $table.roomId, builder: (column) => column);
+
+  GeneratedColumn<String> get receiptProtocol => $composableBuilder(
+    column: $table.receiptProtocol,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get deliveredTargetSeq => $composableBuilder(
+    column: $table.deliveredTargetSeq,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get seenTargetSeq => $composableBuilder(
+    column: $table.seenTargetSeq,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get deliveredConfirmedSeq => $composableBuilder(
+    column: $table.deliveredConfirmedSeq,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get seenConfirmedSeq => $composableBuilder(
+    column: $table.seenConfirmedSeq,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get deliveredTargetTimestamp => $composableBuilder(
+    column: $table.deliveredTargetTimestamp,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get seenTargetTimestamp => $composableBuilder(
+    column: $table.seenTargetTimestamp,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get deliveredConfirmedTimestamp => $composableBuilder(
+    column: $table.deliveredConfirmedTimestamp,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get seenConfirmedTimestamp => $composableBuilder(
+    column: $table.seenConfirmedTimestamp,
+    builder: (column) => column,
+  );
+}
+
+class $$ReceiptTasksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ReceiptTasksTable,
+          ReceiptTaskRow,
+          $$ReceiptTasksTableFilterComposer,
+          $$ReceiptTasksTableOrderingComposer,
+          $$ReceiptTasksTableAnnotationComposer,
+          $$ReceiptTasksTableCreateCompanionBuilder,
+          $$ReceiptTasksTableUpdateCompanionBuilder,
+          (
+            ReceiptTaskRow,
+            BaseReferences<_$AppDatabase, $ReceiptTasksTable, ReceiptTaskRow>,
+          ),
+          ReceiptTaskRow,
+          PrefetchHooks Function()
+        > {
+  $$ReceiptTasksTableTableManager(_$AppDatabase db, $ReceiptTasksTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ReceiptTasksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ReceiptTasksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ReceiptTasksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> roomId = const Value.absent(),
+                Value<String> receiptProtocol = const Value.absent(),
+                Value<int> deliveredTargetSeq = const Value.absent(),
+                Value<int> seenTargetSeq = const Value.absent(),
+                Value<int> deliveredConfirmedSeq = const Value.absent(),
+                Value<int> seenConfirmedSeq = const Value.absent(),
+                Value<int?> deliveredTargetTimestamp = const Value.absent(),
+                Value<int?> seenTargetTimestamp = const Value.absent(),
+                Value<int?> deliveredConfirmedTimestamp = const Value.absent(),
+                Value<int?> seenConfirmedTimestamp = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ReceiptTasksCompanion(
+                roomId: roomId,
+                receiptProtocol: receiptProtocol,
+                deliveredTargetSeq: deliveredTargetSeq,
+                seenTargetSeq: seenTargetSeq,
+                deliveredConfirmedSeq: deliveredConfirmedSeq,
+                seenConfirmedSeq: seenConfirmedSeq,
+                deliveredTargetTimestamp: deliveredTargetTimestamp,
+                seenTargetTimestamp: seenTargetTimestamp,
+                deliveredConfirmedTimestamp: deliveredConfirmedTimestamp,
+                seenConfirmedTimestamp: seenConfirmedTimestamp,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String roomId,
+                Value<String> receiptProtocol = const Value.absent(),
+                Value<int> deliveredTargetSeq = const Value.absent(),
+                Value<int> seenTargetSeq = const Value.absent(),
+                Value<int> deliveredConfirmedSeq = const Value.absent(),
+                Value<int> seenConfirmedSeq = const Value.absent(),
+                Value<int?> deliveredTargetTimestamp = const Value.absent(),
+                Value<int?> seenTargetTimestamp = const Value.absent(),
+                Value<int?> deliveredConfirmedTimestamp = const Value.absent(),
+                Value<int?> seenConfirmedTimestamp = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ReceiptTasksCompanion.insert(
+                roomId: roomId,
+                receiptProtocol: receiptProtocol,
+                deliveredTargetSeq: deliveredTargetSeq,
+                seenTargetSeq: seenTargetSeq,
+                deliveredConfirmedSeq: deliveredConfirmedSeq,
+                seenConfirmedSeq: seenConfirmedSeq,
+                deliveredTargetTimestamp: deliveredTargetTimestamp,
+                seenTargetTimestamp: seenTargetTimestamp,
+                deliveredConfirmedTimestamp: deliveredConfirmedTimestamp,
+                seenConfirmedTimestamp: seenConfirmedTimestamp,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ReceiptTasksTable, ReceiptTaskRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ReceiptTasksTable,
+                    ReceiptTaskRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ReceiptTasksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ReceiptTasksTable,
+      ReceiptTaskRow,
+      $$ReceiptTasksTableFilterComposer,
+      $$ReceiptTasksTableOrderingComposer,
+      $$ReceiptTasksTableAnnotationComposer,
+      $$ReceiptTasksTableCreateCompanionBuilder,
+      $$ReceiptTasksTableUpdateCompanionBuilder,
+      (
+        ReceiptTaskRow,
+        BaseReferences<_$AppDatabase, $ReceiptTasksTable, ReceiptTaskRow>,
+      ),
+      ReceiptTaskRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3316,4 +6287,6 @@ class $AppDatabaseManager {
       $$LocalRoomsTableTableManager(_db, _db.localRooms);
   $$LocalMessagesTableTableManager get localMessages =>
       $$LocalMessagesTableTableManager(_db, _db.localMessages);
+  $$ReceiptTasksTableTableManager get receiptTasks =>
+      $$ReceiptTasksTableTableManager(_db, _db.receiptTasks);
 }

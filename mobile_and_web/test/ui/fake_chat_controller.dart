@@ -5,6 +5,8 @@ import 'package:chat_workspace/core/exports.dart';
 import 'package:drift/native.dart';
 
 class FakeChatController extends ChatController {
+  @override
+  bool get demoEnabled => true;
   FakeChatController({bool authenticated = true})
     : super(
         database: AppDatabase(NativeDatabase.memory()),
@@ -35,7 +37,23 @@ class FakeChatController extends ChatController {
   Timer? _jumpTimer;
   final sentImages = <String>[];
   bool failImageSend = false;
+  Completer<void>? imageSendGate;
   final retriedMessages = <String>[];
+  @override
+  MessageSendContext? captureSendContext() {
+    final userId = currentUser?.id;
+    final roomId =
+        selectedRoom?.roomId ??
+        (draftPeer == null ? null : 'draft_${draftPeer!.id}');
+    if (userId == null || roomId == null) return null;
+    return MessageSendContext(
+      generation: sessionGenerationId,
+      senderId: userId,
+      targetRoomId: roomId,
+      targetPeerUserId: draftPeer?.id,
+    );
+  }
+
   @override
   Future<void> jumpToMessage(String targetId) async {
     requestedJump = targetId;
@@ -61,10 +79,29 @@ class FakeChatController extends ChatController {
     Uint8List bytes,
     String filename, {
     ChatMessage? replyTo,
+    MessageSendContext? context,
   }) async {
     sentImages.add(filename);
+    await imageSendGate?.future;
     if (failImageSend) error = 'Image upload failed';
     notifyListeners();
+  }
+
+  @override
+  Future<void> sendImageBatch(
+    List<({Uint8List bytes, String filename})> images, {
+    ChatMessage? replyTo,
+    required MessageSendContext context,
+  }) async {
+    for (final image in images) {
+      if (!isSendContextCurrent(context)) return;
+      await sendImage(
+        image.bytes,
+        image.filename,
+        replyTo: replyTo,
+        context: context,
+      );
+    }
   }
 
   @override
@@ -127,10 +164,15 @@ class FakeChatController extends ChatController {
   }
 
   @override
-  Future<void> sendText(String text, {ChatMessage? replyTo}) async {
+  Future<bool> sendText(
+    String text, {
+    ChatMessage? replyTo,
+    MessageSendContext? context,
+  }) async {
     sentText = text;
     repliedTo = replyTo;
     notifyListeners();
+    return true;
   }
 
   @override

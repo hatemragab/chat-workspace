@@ -1,0 +1,71 @@
+# Flutter debugging
+
+Debug builds include **Workspace menu → Flutter inspector**, also accessible from **Sync diagnostics → Flutter inspector**. Debug app launches automatically enable Capture, Share with local logs and Full debug traffic logging before initialization. Close the dialog, reproduce the problem, and reopen it. Each browser instance has its own recorder. No extra server, account, dependency or database is needed.
+
+## Follow a screen update
+
+To deliver this inspection to the shared local Logdy/MCP capture, run the [Vector collector](LOCAL_OBSERVABILITY.md), then launch the debug app with **Capture** and **Share with local logs** enabled automatically. New timeline records retain trace/span IDs, phase, user/room/session and duration. **Refresh counters** explicitly exports bounded overview/build/frame/operation metrics. Delivery is debug-only and best effort, with its own visible counters; sharing starts on in debug app launches. Turning **Full debug traffic logging** off keeps capture metadata-only; leaving it on additionally captures the HTTP, realtime and SQLite details below. The separate 60-record full HTTP/realtime recorder remains available.
+
+The timeline links controller actions, HTTP requests, realtime publications, serialized inbox jobs, Drift queries/transactions/watch emissions, state notifications and the four principal screen builds. Filter by category, operation, user ID, room ID or trace ID; expand a record for its metadata. Copy JSON exports the captured window for comparison.
+
+`traceId`, `spanId` and `parentSpanId` connect asynchronous work. The initiating user, session generation and room are captured before an operation waits. State events identify changed fields and carry a notification number. Screen build records use the latest notification context. An unrelated widget rebuild can share that latest context: this is an attribution aid, not a dependency graph of every Flutter element. Stream emissions preserve their subscription context; their exact originating SQLite write may be in a different asynchronous trace.
+
+Ordinary Drift traces describe the operation/table, duration, row/affected count, watch emissions and transaction lifecycle. **Full debug traffic logging** adds redacted SQL, query parameters and result data to captured query spans, alongside its existing HTTP/realtime recorder. **SQLite database rows** in Sync diagnostics provides a separate read-only snapshot of local cached data.
+
+## Recording controls and bounds
+
+- **Pause** freezes collection; **Resume** starts a fresh interval for new operations. Work that crosses a pause/clear/disable boundary cannot add stale completion records.
+- **Clear** resets the captured window and aggregates. It does not change chat state or SQLite data.
+- **Off** clears retained traces and removes the frame callback. Inspector collection cannot be enabled in release/profile builds.
+- The timeline retains 500 rows; eviction from this UI ring happens after live export and is not exporter loss. The optional DevTools span registry retains at most 64 handles. Additional caller-owned operations still emit correlated begin/end/error records with identity/epoch fences; `overflowSpans` reports degraded DevTools tracking, while `droppedSpans` reports omitted timelines. Event/operation/build/frame counts describe the capture interval or retained window. Resource gauges are current samples. Sync request/full-sync gauges are totals for the current inbox service/session, including requests made while capture was off; they are not filtered traffic totals.
+- Recognized typed Drift cancellation has a separate `cancelled` outcome and does not increment operation/watch failure aggregates. Unrecognized database exceptions remain errors. Inbox spans distinguish queue waiting from execution, including batched contiguous publications; outer elapsed duration is not SQL CPU time.
+- The local exporter flushes after at most 100 ms, promptly on errors/full batches, and drains with one request in flight. It protects operation records from sampled/evicted widget/watch noise and reserves 50 slots / 256 KiB for errors/warnings. Temporary failures retain a stable identified batch and retry with bounded backoff; the collector deduplicates successful writes within its two-minute receipt window. The status shows important drops, pending retry and failures; its tooltip and Copy JSON expose all delivery/critical/noise/retirement counters. Hard important-only saturation, permanent rejection and explicit privacy retirement remain visible. No bounded in-memory queue survives a page reload or promises unlimited-outage/crash durability. See [delivery budgets and acknowledgement semantics](LOCAL_OBSERVABILITY.md#deliver-the-flutter-inspector).
+- The inspector listens independently of chat state. Its own refreshes do not notify the chat controller. Widget/frame/gauge sampling does not trigger inspector refreshes. Use **Refresh counters** to read their latest values.
+
+Snapshots contain operational IDs and metadata and should be treated as private debugging data. Recording and custom timeline tasks add overhead; leave collection off when it is unnecessary.
+
+## Inspect HTTP requests and responses
+
+In Logdy select source **flutter**, category **http**, and phase **end**, for example **GET:/presence/status**. Expand `data.http`: `params` holds path parameters, `query` holds outgoing query values (including presence `userIds`), `requestBody` holds submitted JSON, and `responseBody` holds the server reply. A GET without a body shows `requestBody: null`. Request/response headers are included with credentials redacted. The enclosing row retains method, route, status, duration, request ID and initiating user/trace/span. HTTP error replies keep their JSON; network errors have no fabricated response body and expose only the error type.
+
+These details require **Full debug traffic logging** and inspector Capture/Share. Each HTTP envelope is bounded to 32 KiB; oversized fields carry `payloadOmitted` and `omissionReason`, preserving the completion metadata and smaller fields. The collector independently redacts credentials and applies the same defensive value/depth/entry limits as SQLite details (including 8 KiB text values). Binary responses/uploads contain size/file metadata only. Turning full debug off removes HTTP details from retained inspector rows and expanded JSON caches, retires queued exports, and fences in-flight completion across disable/re-enable. Previously accepted logs remain private local records. Existing rows cannot recover payloads that were never captured.
+
+## Inspect realtime data sent and received
+
+In Logdy select **flutter → realtime**. Rows named `socket.send.connect`, `socket.receive.connect`, `socket.receive.publication`, `socket.receive.ping` and `socket.send.pong` expose the SDK protocol boundary. Expand `data.realtime.payload` for the decoded command/reply; the row also retains `direction`, `operation`, `protocolId`, a per-connection `connectionId`, channel and packet byte count. Match command/reply IDs within the same connection. A received publication's application JSON is under `payload.push.pub.data`, including hydrated `room`, compact `receipt` and compact `unread` envelopes. Protocol byte fields containing JSON are decoded before credential redaction; non-JSON bytes use type/length metadata.
+
+Outgoing rows mean **encoded for send** (`send_attempt`); incoming rows mean **decoded receive** (`received`). They do not certify server acceptance, recipient receipt or a SQLite commit. Continue using `publication.received`, `publication.applied`, `publication.covered` and inbox cursor records for application processing. Chat mutations and receipts still use REST and appear in HTTP request/response logs; no chat publish command was added to the socket protocol. Empty ping/pong payloads are valid and carry no application data.
+
+Realtime payloads require Capture, Share and Full debug traffic logging. Each envelope is capped at 32 KiB with explicit omission markers. The collector independently redacts and bounds it. Metadata-only mode does not decode or retain application JSON for this observer. Turning full debug off clears retained/queued payloads and expanded UI caches. Pending replies across opt-out, pause or Clear retain only metadata; a bounded 64-command generation map never stores command bodies. Retired session callbacks cannot write new rows. Already accepted local logs are unchanged.
+
+The debug observer uses the transport/codec seam in the locked `centrifuge` 0.20.1 SDK because its public configuration has no protocol hook. The SDK still owns serialization, WebSocket framing, request correlation, reconnect and application callbacks; release/profile builds use the original public factory. Run the protobuf WebSocket regression tests and Web build when upgrading that dependency.
+
+## Inspect SQLite queries and results
+
+Each debug app session starts with **Full debug traffic logging**, **Capture** and **Share with local logs** enabled. Use **Sync now**, reopen a conversation, or reproduce the action. Use `--dart-define=DEBUG_TRAFFIC_LOGGING_ENABLED=false` to start with metadata-only traffic; capture and sharing remain enabled. All three controls can still be turned off at runtime. Profile/release builds never capture. The single `chat_app_db`, Web Lock, session fences and transactions are unchanged.
+
+In Logdy select source **flutter**, category **drift** and a `query.select`, `query.insert`, `query.update`, `query.delete`, `query.custom` or `query.batch` row. **What happened** describes its executor operation, table, completion state and available counts. Expand `data.sqlite` for SQL, ordered one-based parameter positions, storage types and values, and the final result. SELECT results expose `rowCount`, `rows`, `rowsCaptured` and `rowsOmitted`. Inserts expose SQLite's returned `lastInsertRowId`, not an affected-row count. Update/delete expose affected rows. Batches preserve statement indexes and each execution's bindings; Drift supplies no per-statement rows/counts for this API, so these are not invented. Commit/rollback remains a separate correlated span. Failures retain inputs and safe error type without raw exception messages. These are actual executor inputs/results, not extra diagnostic reads or a SQL profiler.
+
+SQL and parameters remain separate; supplied SQL is never interpolated or executed by the collector. Credential-bearing identifiers cause positional values, literals and returned rows to be redacted conservatively, including aliases hiding credential columns. JSON credential keys, bearer/JWT/URL credentials, comments and binary bytes are removed. Oversized values/rows carry explicit omission objects; result and batch prefix counts show omissions. Each detail is at most 32 KiB, including at most 16 KiB of request detail, within the existing 500-event ring. Only the 64 registered active spans retain SQL inputs; overflow spans keep explicit omission markers. Exporter queue/batch/retry limits remain unchanged. The collector independently validates and redacts the optional envelope while preserving Flutter source, causal IDs and local origin restrictions.
+
+Turning full debug off strips SQL payloads from retained inspector rows and expanded JSON caches, retires pending export and fences in-flight details across disable/re-enable. Capture/Pause/Clear retain their existing epoch fencing. Already accepted records remain in the private capture. Historical records cannot recover missing SQL. Full debug can contain private application/message data after credential redaction; leave it off when unnecessary.
+
+## Investigate performance or a possible leak
+
+Use the inspector to locate repeated inbox recovery, slow queries, growing queue depth, unexpected screen builds, or subscriptions/timers that remain after navigating away. Compare resources after repeating the same open/close flow. These are counts of instrumented resources, not a heap census and not automatic proof of a memory leak. Room/message counts can grow legitimately with caching or pagination.
+
+For **Flutter Web**, open Chrome DevTools on the existing app tab:
+
+1. Use **Performance**, record the same action, and inspect long tasks, scripting, layout and Flutter timeline events.
+2. Use **Memory** heap snapshots or allocation sampling before and after repeated navigation. Compare retained objects and inspect retaining paths. Close the inspector while taking baseline measurements to avoid measuring its own UI.
+3. Check **Network** beside the app timeline when diagnosing retries. The backend request ID links HTTP completion with server traffic logs.
+
+Flutter's native frame timing callback is unavailable on Web, and the inspector labels it unavailable. Use Chrome's profiler for Web frame analysis.
+
+For a supported **native Flutter target**, Flutter DevTools provides CPU profiling, widget rebuild/layout/paint tracing, frame analysis and memory snapshot comparison. It is bundled with the Flutter SDK; `dart devtools --no-launch-browser` starts its UI, and the running app's printed VM-service/DevTools link connects the session. No additional package is required. The inspector also emits bounded custom `dart:developer` timeline tasks during capture on supported native runtimes.
+
+The inspector's native frame summary uses a 16,667 µs reference budget (60 Hz heuristic), not the device's measured refresh rate. Debug timings are diagnostic hints. Use a profile build with Flutter DevTools (or Chrome's tooling for Web) for representative performance measurements. The custom inspector is intentionally unavailable in profile/release builds.
+
+The project currently targets Android and Web. Do not substitute an Android device/emulator for the user's permitted iOS simulator when running device UI tests, or add iOS support just to profile it. Browser verification uses this workspace's explicitly approved existing two Web sessions.
+
+Primary references: [Flutter performance tools](https://docs.flutter.dev/tools/devtools/performance), [Flutter memory tools](https://docs.flutter.dev/tools/devtools/memory), [Chrome memory tools](https://developer.chrome.com/docs/devtools/memory-problems).
